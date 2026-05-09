@@ -46,7 +46,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
           <CheckIcon />
         </div>
         {!isShort && <span className="sched-block-time">{formatTime(block.startTime)} – {formatTime(block.endTime)}</span>}
-        {isShort  && <span className="sched-block-title" style={{ fontSize: 11 }}>{block.title}</span>}
+        {isShort  && <span className="sched-block-title" style={{ fontSize: 16 }}>{block.title}</span>}
       </div>
       {!isShort && <div className="sched-block-title">{block.title}</div>}
       {!isShort && block.notes && height > 64 && <div className="sched-block-notes">{block.notes}</div>}

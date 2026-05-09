@@ -82,7 +82,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
           <label className="form-label">End Time</label>
           <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
           {!timeValid && startTime && endTime && (
-            <span style={{ fontSize: 11, color: 'var(--red)' }}>End must be after start</span>
+            <span style={{ fontSize: 16, color: 'var(--red)' }}>End must be after start</span>
           )}
         </div>
       </div>

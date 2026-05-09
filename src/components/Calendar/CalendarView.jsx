@@ -77,7 +77,7 @@ export default function CalendarView() {
             className="icon-btn"
             title="Go to today"
             onClick={() => dispatch({ type: 'SET_MONTH_YEAR', month: new Date().getMonth(), year: new Date().getFullYear() })}
-            style={{ fontSize: 12, width: 'auto', padding: '0 8px' }}
+            style={{ fontSize: 17, width: 'auto', padding: '0 8px' }}
           >
             Today
           </button>
