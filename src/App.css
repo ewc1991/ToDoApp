@@ -325,6 +325,7 @@ a { color: inherit; text-decoration: none; }
 
 .time-blocks-scroll {
   flex: 1; overflow-y: auto; position: relative;
+  padding-top: 10px; /* headroom so first slot label (translateY -50%) isn't clipped */
 }
 .time-blocks-canvas {
   position: relative;
@@ -336,23 +337,22 @@ a { color: inherit; text-decoration: none; }
 }
 .time-blocks-droppable.is-over { background: rgba(79,70,229,.04); }
 
-.hour-row {
-  height: 64px; position: relative;
+/* Slot markers (every 30 min)
+   Parent row is position:absolute with left:56; labels hang left into the gutter */
+.slot-label {
+  position: absolute; top: 0;
+  left: -56px; width: 52px;
+  text-align: right; padding-right: 8px;
+  transform: translateY(-50%); user-select: none; white-space: nowrap;
+  pointer-events: none; line-height: 1;
 }
-.hour-label {
-  position: absolute; left: -56px; width: 52px;
-  text-align: right; font-size: 10.5px; color: var(--text-4);
-  top: -7px; padding-right: 8px; user-select: none;
-  white-space: nowrap;
+.slot-label.hour  { font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+.slot-label.half  { font-size: 9.5px;  color: var(--text-4); }
+.slot-line {
+  position: absolute; left: 0; right: 0; top: 0; pointer-events: none;
 }
-.hour-line {
-  position: absolute; left: 0; right: 0; top: 0;
-  border-top: 1px solid var(--border);
-}
-.hour-half-line {
-  position: absolute; left: 0; right: 0; top: 32px;
-  border-top: 1px dashed var(--border);
-}
+.slot-line.hour { border-top: 1px solid var(--border); }
+.slot-line.half { border-top: 1px dashed rgba(0,0,0,.07); }
 
 .blocks-layer {
   position: absolute; left: 56px; right: 0; top: 0; pointer-events: none;
@@ -360,14 +360,15 @@ a { color: inherit; text-decoration: none; }
 .blocks-layer > * { pointer-events: auto; }
 
 .current-time-line {
-  position: absolute; left: 0; right: 0;
+  position: absolute; left: 56px; right: 0;
   border-top: 2px solid var(--red);
   z-index: 5; pointer-events: none;
 }
 .current-time-dot {
-  position: absolute; left: -5px; top: -5px;
-  width: 9px; height: 9px; border-radius: 50%;
+  position: absolute; left: 0; top: -4px;
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--red);
+  transform: translateX(-50%);
 }
 
 /* ── Scheduled Block ───────────────────────────────────── */

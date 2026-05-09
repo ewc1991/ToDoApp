@@ -1,12 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable } from '@dnd-kit/core'
-import { HOUR_HEIGHT, layoutBlocks, formatTime, timeToMinutes } from '../../utils/timeUtils.js'
-import { formatHour } from '../../utils/timeUtils.js'
+import { HOUR_HEIGHT, layoutBlocks, formatTime, timeToMinutes, formatSlot } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const TOTAL_HEIGHT = HOUR_HEIGHT * 24
+const ALL_SLOTS = Array.from({ length: 48 }, (_, i) => i * 30) // 0, 30, 60 … 1410
+
+const DEFAULT_START = 8 * 60   // 8 AM
+const DEFAULT_END   = 20 * 60  // 8 PM
 
 function CheckIcon() {
   return (
@@ -16,34 +17,27 @@ function CheckIcon() {
   )
 }
 
-function ScheduledBlock({ block, onEdit }) {
+function ScheduledBlock({ block, startOffset, onEdit }) {
   const { dispatch } = useApp()
   const startMin = timeToMinutes(block.startTime)
-  const endMin = timeToMinutes(block.endTime)
+  const endMin   = timeToMinutes(block.endTime)
   const duration = Math.max(endMin - startMin, 15)
 
-  const top = (startMin / 60) * HOUR_HEIGHT
+  const top    = ((startMin - startOffset) / 60) * HOUR_HEIGHT
   const height = Math.max((duration / 60) * HOUR_HEIGHT, 22)
-  const leftPct = (block.colIdx / block.numCols) * 100
-  const widthPct = (1 / block.numCols) * 100
   const GUTTER = 2
-
-  const style = {
+  const style  = {
     position: 'absolute',
     top,
     height,
-    left: `calc(${leftPct}% + ${GUTTER}px)`,
-    width: `calc(${widthPct}% - ${GUTTER * 2}px)`,
+    left:  `calc(${(block.colIdx / block.numCols) * 100}% + ${GUTTER}px)`,
+    width: `calc(${(1 / block.numCols) * 100}% - ${GUTTER * 2}px)`,
   }
 
   const isShort = height < 40
 
   return (
-    <div
-      className={`sched-block${block.completed ? ' completed' : ''}`}
-      style={style}
-      onClick={() => onEdit(block.id)}
-    >
+    <div className={`sched-block${block.completed ? ' completed' : ''}`} style={style} onClick={() => onEdit(block.id)}>
       <div className="sched-block-header">
         <div
           className={`block-check${block.completed ? ' checked' : ''}`}
@@ -52,7 +46,7 @@ function ScheduledBlock({ block, onEdit }) {
           <CheckIcon />
         </div>
         {!isShort && <span className="sched-block-time">{formatTime(block.startTime)} – {formatTime(block.endTime)}</span>}
-        {isShort && <span className="sched-block-title" style={{ fontSize: 11 }}>{block.title}</span>}
+        {isShort  && <span className="sched-block-title" style={{ fontSize: 11 }}>{block.title}</span>}
       </div>
       {!isShort && <div className="sched-block-title">{block.title}</div>}
       {!isShort && block.notes && height > 64 && <div className="sched-block-notes">{block.notes}</div>}
@@ -60,16 +54,13 @@ function ScheduledBlock({ block, onEdit }) {
   )
 }
 
-export default function TimeBlocksSection({ date, isOver: parentIsOver }) {
+export default function TimeBlocksSection({ date }) {
   const { state, dispatch } = useApp()
   const [schedulerState, setSchedulerState] = useState(null)
+  const [showWholeDay, setShowWholeDay] = useState(false)
   const scrollRef = useRef(null)
 
-  const blocks = state.scheduledBlocks.filter(b => b.date === date)
-  const displayBlocks = state.showCompletedBlocks ? blocks : blocks.filter(b => !b.completed)
-  const layouted = useMemo(() => layoutBlocks(displayBlocks), [displayBlocks])
-
-  // Current time
+  // Live current time
   const [nowMinutes, setNowMinutes] = useState(() => {
     const d = new Date(); return d.getHours() * 60 + d.getMinutes()
   })
@@ -80,26 +71,48 @@ export default function TimeBlocksSection({ date, isOver: parentIsOver }) {
     return () => clearInterval(id)
   }, [])
 
-  // Scroll to current time on mount
+  const displayStartMinutes = showWholeDay ? 0 : DEFAULT_START
+  const displayEndMinutes   = showWholeDay ? 1440 : DEFAULT_END
+
+  const blocks = state.scheduledBlocks.filter(b => b.date === date)
+
+  // Keep only blocks that overlap the visible window
+  const displayBlocks = useMemo(() => {
+    return blocks.filter(b => {
+      if (!state.showCompletedBlocks && b.completed) return false
+      // include block if it overlaps [displayStart, displayEnd]
+      return timeToMinutes(b.startTime) < displayEndMinutes &&
+             timeToMinutes(b.endTime)   > displayStartMinutes
+    })
+  }, [blocks, state.showCompletedBlocks, displayStartMinutes, displayEndMinutes])
+
+  const layouted    = useMemo(() => layoutBlocks(displayBlocks), [displayBlocks])
+  const canvasHeight = ((displayEndMinutes - displayStartMinutes) / 60) * HOUR_HEIGHT
+  const visibleSlots = ALL_SLOTS.filter(m => m >= displayStartMinutes && m <= displayEndMinutes)
+
+  // Current-time indicator position (only when within visible window)
+  const nowTop = ((nowMinutes - displayStartMinutes) / 60) * HOUR_HEIGHT
+  const nowVisible = nowMinutes >= displayStartMinutes && nowMinutes <= displayEndMinutes
+
+  // Scroll: default view needs no scroll (8 AM is top); whole-day scrolls to current time
   useEffect(() => {
-    const scrollTo = Math.max(0, (nowMinutes / 60) * HOUR_HEIGHT - 180)
-    scrollRef.current?.scrollTo({ top: scrollTo, behavior: 'instant' })
-  }, [])
+    if (showWholeDay) {
+      const scrollTo = Math.max(0, ((nowMinutes - 0) / 60) * HOUR_HEIGHT - 180)
+      scrollRef.current?.scrollTo({ top: scrollTo, behavior: 'smooth' })
+    } else {
+      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [showWholeDay])
 
   const { setNodeRef, isOver } = useDroppable({ id: 'time-blocks-droppable' })
 
-  const nowTop = (nowMinutes / 60) * HOUR_HEIGHT
-
   const openScheduler = (prefill = {}) => setSchedulerState({ prefill })
-  const openEdit = (blockId) => setSchedulerState({ blockId })
+  const openEdit      = (blockId)      => setSchedulerState({ blockId })
 
-  // Handle keyboard shortcut 't' for new time block
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 't' && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault(); openScheduler()
-      }
+      if (e.key === 't' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openScheduler() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -113,45 +126,60 @@ export default function TimeBlocksSection({ date, isOver: parentIsOver }) {
           <label className="show-completed-toggle">
             <input
               type="checkbox"
+              checked={showWholeDay}
+              onChange={e => setShowWholeDay(e.target.checked)}
+            />
+            Whole day
+          </label>
+          <label className="show-completed-toggle">
+            <input
+              type="checkbox"
               checked={state.showCompletedBlocks}
               onChange={() => dispatch({ type: 'TOGGLE_SHOW_COMPLETED_BLOCKS' })}
             />
-            Show completed
+            Completed
           </label>
           <button className="add-btn" title="Add time block (T)" onClick={() => openScheduler()}>+</button>
         </div>
       </div>
 
       <div className="time-blocks-scroll" ref={scrollRef}>
-        <div className="time-blocks-canvas" style={{ height: TOTAL_HEIGHT }}>
-          {/* Hour rows */}
-          {HOURS.map(h => (
-            <div key={h} className="hour-row" style={{ position: 'absolute', top: h * HOUR_HEIGHT, left: 0, right: 0, height: HOUR_HEIGHT }}>
-              <span className="hour-label">{formatHour(h)}</span>
-              <div className="hour-line" />
-              <div className="hour-half-line" />
+        <div className="time-blocks-canvas" style={{ height: canvasHeight }}>
+
+          {visibleSlots.map(slotMin => {
+            const isHour = slotMin % 60 === 0
+            const top = ((slotMin - displayStartMinutes) / 60) * HOUR_HEIGHT
+            return (
+              <div key={slotMin} style={{ position: 'absolute', top, left: 56, right: 0, height: 0 }}>
+                <span className={isHour ? 'slot-label hour' : 'slot-label half'}>{formatSlot(slotMin)}</span>
+                <div className={isHour ? 'slot-line hour' : 'slot-line half'} />
+              </div>
+            )
+          })}
+
+          {nowVisible && (
+            <div className="current-time-line" style={{ top: nowTop }}>
+              <div className="current-time-dot" />
             </div>
-          ))}
+          )}
 
-          {/* Current time indicator */}
-          <div className="current-time-line" style={{ top: nowTop }}>
-            <div className="current-time-dot" />
-          </div>
-
-          {/* Drop zone */}
           <div
             ref={setNodeRef}
             className={`time-blocks-droppable${isOver ? ' is-over' : ''}`}
-            style={{ position: 'absolute', left: 56, right: 0, top: 0, height: TOTAL_HEIGHT }}
+            style={{ position: 'absolute', left: 56, right: 0, top: 0, height: canvasHeight }}
           />
 
-          {/* Blocks layer */}
           <div
             className="blocks-layer"
-            style={{ position: 'absolute', left: 56, right: 0, top: 0, height: TOTAL_HEIGHT }}
+            style={{ position: 'absolute', left: 56, right: 0, top: 0, height: canvasHeight }}
           >
             {layouted.map(block => (
-              <ScheduledBlock key={block.id} block={block} onEdit={openEdit} />
+              <ScheduledBlock
+                key={block.id}
+                block={block}
+                startOffset={displayStartMinutes}
+                onEdit={openEdit}
+              />
             ))}
           </div>
         </div>

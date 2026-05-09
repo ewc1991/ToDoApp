@@ -26,8 +26,10 @@ export default function ToDoPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // Only show tasks without recurringTemplateId (recurring instances show in day planner only)
-  const allTasks = state.tasks.filter(t => !t.recurringTemplateId)
+  // Tasks promoted to a time block (todoTaskId linkage) are no longer backlog items
+  const promotedIds = new Set(state.scheduledBlocks.filter(b => b.todoTaskId).map(b => b.todoTaskId))
+  // Only show tasks without recurringTemplateId and not promoted to a time block
+  const allTasks = state.tasks.filter(t => !t.recurringTemplateId && !promotedIds.has(t.id))
   const tasks = state.showCompletedTasks ? allTasks : allTasks.filter(t => !t.completed)
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
