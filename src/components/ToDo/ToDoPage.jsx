@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatShortDate } from '../../utils/dateUtils.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
@@ -15,6 +15,19 @@ export default function ToDoPage() {
   const { state, dispatch } = useApp()
   const [editId, setEditId] = useState(null)
   const [showNew, setShowNew] = useState(false)
+  const [showUndo, setShowUndo] = useState(false)
+  const undoTimer = useRef(null)
+  const prevLastCompleted = useRef(state.lastCompletedTask)
+
+  useEffect(() => {
+    if (state.lastCompletedTask && state.lastCompletedTask !== prevLastCompleted.current) {
+      setShowUndo(true)
+      clearTimeout(undoTimer.current)
+      undoTimer.current = setTimeout(() => setShowUndo(false), 5000)
+    }
+    prevLastCompleted.current = state.lastCompletedTask
+    return () => clearTimeout(undoTimer.current)
+  }, [state.lastCompletedTask])
 
   // Keyboard shortcut
   useEffect(() => {
@@ -43,21 +56,22 @@ export default function ToDoPage() {
     <div className="todo-page page">
       <div className="todo-toolbar">
         <span className="todo-toolbar-title">To Do</span>
-        <button
-          className="undo-btn"
-          disabled={!state.lastCompletedTask}
-          onClick={() => dispatch({ type: 'UNDO_LAST_COMPLETION' })}
-          title="Undo last completion (Ctrl+Z)"
-        >
-          ↩ Undo
-        </button>
+        {showUndo && (
+          <button
+            className="undo-btn"
+            onClick={() => { dispatch({ type: 'UNDO_LAST_COMPLETION' }); setShowUndo(false) }}
+            title="Undo last completion (Ctrl+Z)"
+          >
+            ↩ Undo
+          </button>
+        )}
         <label className="show-completed-toggle">
           <input
             type="checkbox"
             checked={state.showCompletedTasks}
             onChange={() => dispatch({ type: 'TOGGLE_SHOW_COMPLETED_TASKS' })}
           />
-          Show completed
+          Show Completed
         </label>
         <button className="add-btn" title="New task (N)" onClick={() => setShowNew(true)}>+</button>
       </div>
