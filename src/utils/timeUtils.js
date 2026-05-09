@@ -26,14 +26,13 @@ export const formatHour = (hour) => {
   return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
 };
 
-// Label for a slot given minutes from midnight (0, 30, 60, 90, ...)
+// Label for a slot given minutes from midnight — always shows :00 or :30
 export const formatSlot = (minutes) => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (m === 0) return formatHour(h);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const hour = h % 12 || 12;
-  return `${hour}:30 ${ampm}`;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 };
 
 export const getNearestHalfHour = () => {

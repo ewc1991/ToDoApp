@@ -2,12 +2,12 @@ import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, layoutBlocks, formatTime, timeToMinutes, formatSlot } from '../../utils/timeUtils.js'
+import { today as getToday } from '../../utils/dateUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
-const ALL_SLOTS = Array.from({ length: 48 }, (_, i) => i * 30) // 0, 30, 60 … 1410
-
-const DEFAULT_START = 8 * 60   // 8 AM
-const DEFAULT_END   = 20 * 60  // 8 PM
+const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
+const DEFAULT_END = 20 * 60  // 8 PM
+const floorTo30   = (mins) => Math.floor(mins / 30) * 30
 
 function CheckIcon() {
   return (
@@ -71,8 +71,14 @@ export default function TimeBlocksSection({ date }) {
     return () => clearInterval(id)
   }, [])
 
-  const displayStartMinutes = showWholeDay ? 0 : DEFAULT_START
-  const displayEndMinutes   = showWholeDay ? 1440 : DEFAULT_END
+  const isCurrentDay = date === getToday()
+  // Default view: start from now (for today) or 8 AM (other days); end at 8 PM unless past it
+  const displayStartMinutes = showWholeDay ? 0
+    : isCurrentDay ? floorTo30(nowMinutes)
+    : 8 * 60
+  const displayEndMinutes = showWholeDay ? 1440
+    : (isCurrentDay && nowMinutes > DEFAULT_END) ? 1440
+    : DEFAULT_END
 
   const blocks = state.scheduledBlocks.filter(b => b.date === date)
 
@@ -129,7 +135,7 @@ export default function TimeBlocksSection({ date }) {
               checked={showWholeDay}
               onChange={e => setShowWholeDay(e.target.checked)}
             />
-            Whole day
+            Whole Day
           </label>
           <label className="show-completed-toggle">
             <input
@@ -137,7 +143,7 @@ export default function TimeBlocksSection({ date }) {
               checked={state.showCompletedBlocks}
               onChange={() => dispatch({ type: 'TOGGLE_SHOW_COMPLETED_BLOCKS' })}
             />
-            Completed
+            View Completed
           </label>
           <button className="add-btn" title="Add time block (T)" onClick={() => openScheduler()}>+</button>
         </div>
