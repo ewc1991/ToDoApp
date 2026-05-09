@@ -8,7 +8,7 @@ import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
 const DEFAULT_END = 20 * 60  // 8 PM
 const floorTo30   = (mins) => Math.floor(mins / 30) * 30
-const BLOCKS_LEFT = 70       // px: gutter for time labels
+const BLOCKS_LEFT = 80       // px: gutter for time labels
 
 function CheckIcon() {
   return (
@@ -177,7 +177,7 @@ export default function TimeBlocksSection({ date }) {
             const isHour = slotMin % 60 === 0
             const top = ((slotMin - displayStartMinutes) / 60) * HOUR_HEIGHT
             return (
-              <div key={slotMin} style={{ position: 'absolute', top, left: BLOCKS_LEFT, right: 0, height: 0 }}>
+              <div key={slotMin} style={{ position: 'absolute', top, left: 0, right: 0, height: 0 }}>
                 <span className={isHour ? 'slot-label hour' : 'slot-label half'}>{formatSlot(slotMin)}</span>
                 <div className={isHour ? 'slot-line hour' : 'slot-line half'} />
               </div>
