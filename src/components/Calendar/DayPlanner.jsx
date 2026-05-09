@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor,
   useSensor, useSensors, pointerWithin, closestCenter,
@@ -24,6 +24,35 @@ export default function DayPlanner({ date }) {
   const { state, dispatch } = useApp()
   const [activeTask, setActiveTask] = useState(null)
   const [schedulerPrefill, setSchedulerPrefill] = useState(null)
+  const [panelWidth, setPanelWidth] = useState(300)
+  const [dividerDragging, setDividerDragging] = useState(false)
+  const dividerRef = useRef({ dragging: false, startX: 0, startWidth: 0 })
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!dividerRef.current.dragging) return
+      const delta = e.clientX - dividerRef.current.startX
+      setPanelWidth(Math.max(160, Math.min(520, dividerRef.current.startWidth + delta)))
+    }
+    const onMouseUp = () => {
+      if (!dividerRef.current.dragging) return
+      dividerRef.current.dragging = false
+      setDividerDragging(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp) }
+  }, [])
+
+  const handleDividerMouseDown = (e) => {
+    e.preventDefault()
+    dividerRef.current = { dragging: true, startX: e.clientX, startWidth: panelWidth }
+    setDividerDragging(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -106,7 +135,11 @@ export default function DayPlanner({ date }) {
         onDragEnd={handleDragEnd}
       >
         <div className="planner-body">
-          <UnscheduledSection tasks={unscheduledTasks} date={date} activeId={activeTask?.id} />
+          <UnscheduledSection tasks={unscheduledTasks} date={date} activeId={activeTask?.id} width={panelWidth} />
+          <div
+            className={`panel-divider${dividerDragging ? ' dragging' : ''}`}
+            onMouseDown={handleDividerMouseDown}
+          />
           <TimeBlocksSection date={date} />
         </div>
 

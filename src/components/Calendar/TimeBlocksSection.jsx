@@ -46,6 +46,29 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
 
   const isShort = height < 40
 
+  const handleResizePointerDown = (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const startY = e.clientY
+    const origEndMin = timeToMinutes(block.endTime)
+    const blockStartMin = timeToMinutes(block.startTime)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+    const onPointerMove = (e) => {
+      const deltaMin = Math.round(((e.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15
+      const newEnd = Math.max(blockStartMin + 15, Math.min(1440, origEndMin + deltaMin))
+      dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: block.id, updates: { endTime: minutesToTime(newEnd) } })
+    }
+    const onPointerUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -66,6 +89,11 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
       </div>
       {!isShort && <div className="sched-block-title">{block.title}</div>}
       {!isShort && block.notes && height > 64 && <div className="sched-block-notes">{block.notes}</div>}
+      <div
+        className="sched-block-resize-handle"
+        onPointerDown={handleResizePointerDown}
+        onClick={e => e.stopPropagation()}
+      />
     </div>
   )
 }
