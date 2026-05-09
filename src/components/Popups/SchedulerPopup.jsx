@@ -8,7 +8,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const existing = blockId ? state.scheduledBlocks.find(b => b.id === blockId) : null
 
   const defaultStart = existing?.startTime || prefill?.startTime || '00:00'
-  const defaultEnd = existing?.endTime || prefill?.endTime || '00:00'
+  const defaultEnd = existing?.endTime || minutesToTime(timeToMinutes(defaultStart) + 30)
 
   const [title, setTitle] = useState(existing?.title || prefill?.title || '')
   const [notes, setNotes] = useState(existing?.notes || prefill?.notes || '')

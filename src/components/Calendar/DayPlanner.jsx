@@ -6,6 +6,7 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatDisplayDate } from '../../utils/dateUtils.js'
+import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
@@ -39,11 +40,33 @@ export default function DayPlanner({ date }) {
   , [state.tasks, date, scheduledTaskIds])
 
   const handleDragStart = ({ active }) => {
+    if (String(active.id).startsWith('block-')) return  // block drag: no overlay
     const task = state.tasks.find(t => t.id === active.id)
     setActiveTask(task || null)
   }
 
-  const handleDragEnd = ({ active, over }) => {
+  const handleDragEnd = ({ active, over, delta }) => {
+    // Reschedule an existing time block by dragging it
+    if (String(active.id).startsWith('block-')) {
+      const blockId = String(active.id).replace(/^block-/, '')
+      const block = state.scheduledBlocks.find(b => b.id === blockId)
+      if (block) {
+        const minutesDelta = Math.round((delta.y / HOUR_HEIGHT) * 60 / 15) * 15
+        if (minutesDelta !== 0) {
+          const oldStart = timeToMinutes(block.startTime)
+          const oldEnd   = timeToMinutes(block.endTime)
+          const duration = oldEnd - oldStart
+          const newStart = Math.max(0, Math.min(1440 - duration, oldStart + minutesDelta))
+          dispatch({
+            type: 'UPDATE_SCHEDULED_BLOCK',
+            id: blockId,
+            updates: { startTime: minutesToTime(newStart), endTime: minutesToTime(newStart + duration) },
+          })
+        }
+      }
+      return
+    }
+
     setActiveTask(null)
     if (!over) return
 
