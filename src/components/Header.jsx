@@ -1,5 +1,6 @@
 import React from 'react'
 import { useApp } from '../store/AppContext.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 
 const TABS = [
   { id: 'calendar', label: 'Calendar' },
@@ -9,6 +10,7 @@ const TABS = [
 
 export default function Header() {
   const { state, dispatch } = useApp()
+  const { user, logOut } = useAuth()
 
   return (
     <header className="header">
@@ -24,6 +26,12 @@ export default function Header() {
           </button>
         ))}
       </nav>
+      <div className="header-user">
+        {user?.photoURL && (
+          <img className="header-avatar" src={user.photoURL} alt={user.displayName ?? ''} referrerPolicy="no-referrer" />
+        )}
+        <button className="header-signout" onClick={logOut}>Sign out</button>
+      </div>
     </header>
   )
 }

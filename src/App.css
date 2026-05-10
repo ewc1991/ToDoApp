@@ -80,6 +80,71 @@ a { color: inherit; text-decoration: none; }
 }
 .header-tab:hover { background: var(--surface-2); color: var(--text); }
 .header-tab.active { background: var(--accent-light); color: var(--accent); }
+.header-user { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.header-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.header-signout {
+  font-size: 14px;
+  color: var(--text-3);
+  padding: 4px 10px;
+  border-radius: var(--r-md);
+  transition: background .12s, color .12s;
+}
+.header-signout:hover { background: var(--surface-2); color: var(--text); }
+
+/* ── Auth ──────────────────────────────────────────────── */
+.app-loading {
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 16px;
+}
+.login-page {
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+}
+.login-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-md);
+  min-width: 320px;
+}
+.login-brand {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--accent);
+}
+.login-subtitle {
+  font-size: 15px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.btn-google {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background .12s, box-shadow .12s;
+  white-space: nowrap;
+}
+.btn-google:hover { background: var(--surface); box-shadow: var(--shadow-sm); }
 
 /* ── Page container ────────────────────────────────────── */
 .page-inner {

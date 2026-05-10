@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from './AuthContext';
 import { today } from '../utils/dateUtils';
 import { shouldRecurOnDate } from '../utils/recurringUtils';
 
@@ -37,8 +40,20 @@ function getInitialState() {
   return INITIAL_STATE;
 }
 
+function applyLoadedState(loaded) {
+  const todayStr = today();
+  const merged = { ...INITIAL_STATE, ...loaded };
+  if (merged.lastVisitDate !== todayStr) {
+    return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
+  }
+  return merged;
+}
+
 function reducer(state, action) {
   switch (action.type) {
+
+    case 'LOAD_STATE':
+      return applyLoadedState(action.state);
 
     case 'ADD_TASK': {
       const task = {
@@ -213,10 +228,45 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, null, getInitialState);
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
+  const firestoreReadyRef = useRef(false);
 
+  // Load from Firestore when user signs in
+  useEffect(() => {
+    if (!uid) {
+      firestoreReadyRef.current = false;
+      return;
+    }
+    const load = async () => {
+      const docRef = doc(db, 'users', uid, 'plannerState');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        firestoreReadyRef.current = true;
+        dispatch({ type: 'LOAD_STATE', state: snap.data() });
+      } else {
+        // First login — migrate existing localStorage data to Firestore
+        await setDoc(docRef, state);
+        firestoreReadyRef.current = true;
+      }
+    };
+    load().catch(console.error);
+  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save to localStorage on every change (instant cache)
   useEffect(() => {
     try { localStorage.setItem('planner-state-v1', JSON.stringify(state)); } catch {}
   }, [state]);
+
+  // Debounced save to Firestore (1.5s after last change)
+  useEffect(() => {
+    if (!uid || !firestoreReadyRef.current) return;
+    const timer = setTimeout(() => {
+      const docRef = doc(db, 'users', uid, 'plannerState');
+      setDoc(docRef, state).catch(console.error);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [state, uid]);
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
 }
