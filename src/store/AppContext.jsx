@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
+import {
+  doc, collection,
+  setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, getDoc,
+  onSnapshot,
+} from 'firebase/firestore';
 import { db } from '../firebase';
-import { auth } from '../firebase';
 import { useAuth } from './AuthContext';
 import { today } from '../utils/dateUtils';
 import { shouldRecurOnDate } from '../utils/recurringUtils';
@@ -26,31 +29,10 @@ const INITIAL_STATE = {
   showCompletedBlocks: false,
 };
 
-const localKey = (uid) => `planner-state-v1-${uid}`;
-
-function getCachedState(uid) {
-  try {
-    const saved = localStorage.getItem(localKey(uid));
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return null;
-}
-
-// Try to read per-user cache synchronously at startup (auth.currentUser is
-// available immediately on page reload when Firebase has a cached session).
-function getInitialState() {
-  const uid = auth.currentUser?.uid;
-  if (uid) {
-    const cached = getCachedState(uid);
-    if (cached) return applyLoadedState(cached);
-  }
-  return INITIAL_STATE;
-}
-
-function applyLoadedState(loaded) {
+// Merge settings from Firestore into current state, resetting UI position to calendar
+function applySettings(state, settings) {
   const todayStr = today();
-  // Always land on calendar page when state is loaded (login or page refresh)
-  const merged = { ...INITIAL_STATE, ...loaded, currentPage: 'calendar' };
+  const merged = { ...state, ...settings, currentPage: 'calendar' };
   if (merged.lastVisitDate !== todayStr) {
     return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
   }
@@ -60,18 +42,27 @@ function applyLoadedState(loaded) {
 function reducer(state, action) {
   switch (action.type) {
 
-    case 'LOAD_STATE':
-      return applyLoadedState(action.state);
+    // ── Firestore load actions ─────────────────────────────
+    case 'RESET':
+      return INITIAL_STATE;
 
-    case 'ADD_TASK': {
-      const task = {
-        id: genId(), title: action.title, notes: action.notes || '',
-        completed: false, assignedDate: action.assignedDate || null,
-        recurringTemplateId: action.recurringTemplateId || null,
-        createdAt: ts(), updatedAt: ts(),
-      };
-      return { ...state, tasks: [...state.tasks, task] };
+    case 'SET_TASKS': {
+      const sorted = [...action.tasks].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+      return { ...state, tasks: sorted };
     }
+
+    case 'SET_SCHEDULED_BLOCKS':
+      return { ...state, scheduledBlocks: action.scheduledBlocks };
+
+    case 'SET_RECURRING_TEMPLATES':
+      return { ...state, recurringTemplates: action.recurringTemplates };
+
+    case 'SET_SETTINGS':
+      return applySettings(state, action.settings);
+
+    // ── Tasks ───────────────────────────────────────────────
+    case 'ADD_TASK':
+      return { ...state, tasks: [...state.tasks, action.task] };
 
     case 'UPDATE_TASK':
       return {
@@ -121,20 +112,13 @@ function reducer(state, action) {
         .filter(i => i !== -1)
         .sort((a, b) => a - b);
       const newTasks = [...state.tasks];
-      orderedIds.forEach((id, i) => { newTasks[positions[i]] = taskMap[id]; });
+      orderedIds.forEach((id, i) => { newTasks[positions[i]] = { ...taskMap[id], sortIndex: i }; });
       return { ...state, tasks: newTasks };
     }
 
-    case 'ADD_SCHEDULED_BLOCK': {
-      const block = {
-        id: genId(), title: action.title, notes: action.notes || '',
-        completed: false, date: action.date,
-        startTime: action.startTime, endTime: action.endTime,
-        todoTaskId: action.todoTaskId || null,
-        createdAt: ts(), updatedAt: ts(),
-      };
-      return { ...state, scheduledBlocks: [...state.scheduledBlocks, block] };
-    }
+    // ── Scheduled blocks ────────────────────────────────────
+    case 'ADD_SCHEDULED_BLOCK':
+      return { ...state, scheduledBlocks: [...state.scheduledBlocks, action.block] };
 
     case 'UPDATE_SCHEDULED_BLOCK':
       return {
@@ -163,16 +147,9 @@ function reducer(state, action) {
       };
     }
 
-    case 'ADD_RECURRING_TEMPLATE': {
-      const template = {
-        id: genId(), title: action.title, notes: action.notes || '',
-        recurrenceType: action.recurrenceType,
-        dayOfWeek: action.dayOfWeek ?? null, dayOfMonth: action.dayOfMonth ?? null,
-        startDate: action.startDate || null, endDate: action.endDate || null,
-        createdAt: ts(), updatedAt: ts(),
-      };
-      return { ...state, recurringTemplates: [...state.recurringTemplates, template] };
-    }
+    // ── Recurring templates ─────────────────────────────────
+    case 'ADD_RECURRING_TEMPLATE':
+      return { ...state, recurringTemplates: [...state.recurringTemplates, action.template] };
 
     case 'UPDATE_RECURRING_TEMPLATE':
       return {
@@ -186,22 +163,15 @@ function reducer(state, action) {
       return { ...state, recurringTemplates: state.recurringTemplates.filter(t => t.id !== action.id) };
 
     case 'GENERATE_RECURRING_FOR_DATE': {
-      const { dateStr } = action;
-      if (state.generatedDates.includes(dateStr)) return state;
-      const newTasks = state.recurringTemplates
-        .filter(tmpl => shouldRecurOnDate(tmpl, dateStr))
-        .map(tmpl => ({
-          id: genId(), title: tmpl.title, notes: tmpl.notes, completed: false,
-          assignedDate: dateStr, recurringTemplateId: tmpl.id,
-          createdAt: ts(), updatedAt: ts(),
-        }));
+      if (state.generatedDates.includes(action.dateStr)) return state;
       return {
         ...state,
-        tasks: [...state.tasks, ...newTasks],
-        generatedDates: [...state.generatedDates, dateStr],
+        tasks: [...state.tasks, ...action.newTasks],
+        generatedDates: [...state.generatedDates, action.dateStr],
       };
     }
 
+    // ── Navigation ──────────────────────────────────────────
     case 'NAVIGATE_PAGE':
       return { ...state, currentPage: action.page };
 
@@ -235,56 +205,284 @@ function reducer(state, action) {
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, null, getInitialState);
+  const [state, baseDispatch] = useReducer(reducer, INITIAL_STATE);
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-  const firestoreReadyRef = useRef(false);
+  const stateRef = useRef(state);
+  const settingsReadyRef = useRef(false);
 
+  useEffect(() => { stateRef.current = state; }, [state]);
+
+  // Dispatch wrapper — updates local state AND writes the targeted Firestore doc(s)
+  const dispatch = useCallback((action) => {
+    const s = stateRef.current;
+    let enriched = action;
+
+    switch (action.type) {
+
+      case 'ADD_TASK': {
+        const task = {
+          id: genId(), title: action.title, notes: action.notes || '',
+          completed: false, assignedDate: action.assignedDate || null,
+          recurringTemplateId: action.recurringTemplateId || null,
+          sortIndex: s.tasks.length,
+          createdAt: ts(), updatedAt: ts(),
+        };
+        enriched = { ...action, task };
+        if (uid) setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(console.error);
+        break;
+      }
+
+      case 'UPDATE_TASK': {
+        const updates = { ...action.updates, updatedAt: ts() };
+        enriched = { ...action, updates };
+        if (uid) updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(console.error);
+        break;
+      }
+
+      case 'DELETE_TASK': {
+        if (uid) {
+          deleteDoc(doc(db, 'users', uid, 'tasks', action.id)).catch(console.error);
+          s.scheduledBlocks
+            .filter(b => b.todoTaskId === action.id)
+            .forEach(b => deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id)).catch(console.error));
+        }
+        break;
+      }
+
+      case 'TOGGLE_TASK_COMPLETE': {
+        const task = s.tasks.find(t => t.id === action.id);
+        if (!task || !uid) break;
+        const completed = !task.completed;
+        const updates = { completed, updatedAt: ts() };
+        updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(console.error);
+        s.scheduledBlocks
+          .filter(b => b.todoTaskId === action.id)
+          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
+        setDoc(doc(db, 'users', uid, 'settings'),
+          { lastCompletedTask: completed ? { ...task, completed } : null },
+          { merge: true }).catch(console.error);
+        break;
+      }
+
+      case 'UNDO_LAST_COMPLETION': {
+        const { lastCompletedTask } = s;
+        if (!lastCompletedTask || !uid) break;
+        const updates = { completed: false, updatedAt: ts() };
+        updateDoc(doc(db, 'users', uid, 'tasks', lastCompletedTask.id), updates).catch(console.error);
+        s.scheduledBlocks
+          .filter(b => b.todoTaskId === lastCompletedTask.id)
+          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
+        setDoc(doc(db, 'users', uid, 'settings'), { lastCompletedTask: null }, { merge: true }).catch(console.error);
+        break;
+      }
+
+      case 'REORDER_TASKS': {
+        if (uid && action.orderedIds) {
+          const batch = writeBatch(db);
+          action.orderedIds.forEach((id, i) => {
+            batch.update(doc(db, 'users', uid, 'tasks', id), { sortIndex: i, updatedAt: ts() });
+          });
+          batch.commit().catch(console.error);
+        }
+        break;
+      }
+
+      case 'ADD_SCHEDULED_BLOCK': {
+        const block = {
+          id: genId(), title: action.title, notes: action.notes || '',
+          completed: false, date: action.date,
+          startTime: action.startTime, endTime: action.endTime,
+          todoTaskId: action.todoTaskId || null,
+          createdAt: ts(), updatedAt: ts(),
+        };
+        enriched = { ...action, block };
+        if (uid) setDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), block).catch(console.error);
+        break;
+      }
+
+      case 'UPDATE_SCHEDULED_BLOCK': {
+        const updates = { ...action.updates, updatedAt: ts() };
+        enriched = { ...action, updates };
+        if (uid) updateDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id), updates).catch(console.error);
+        break;
+      }
+
+      case 'DELETE_SCHEDULED_BLOCK': {
+        if (uid) deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id)).catch(console.error);
+        break;
+      }
+
+      case 'TOGGLE_BLOCK_COMPLETE': {
+        const block = s.scheduledBlocks.find(b => b.id === action.id);
+        if (!block || !uid) break;
+        const completed = !block.completed;
+        const updates = { completed, updatedAt: ts() };
+        updateDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), updates).catch(console.error);
+        if (block.todoTaskId) {
+          updateDoc(doc(db, 'users', uid, 'tasks', block.todoTaskId), updates).catch(console.error);
+          if (completed) {
+            const linkedTask = s.tasks.find(t => t.id === block.todoTaskId);
+            if (linkedTask) {
+              setDoc(doc(db, 'users', uid, 'settings'),
+                { lastCompletedTask: { ...linkedTask, completed } },
+                { merge: true }).catch(console.error);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'ADD_RECURRING_TEMPLATE': {
+        const template = {
+          id: genId(), title: action.title, notes: action.notes || '',
+          recurrenceType: action.recurrenceType,
+          dayOfWeek: action.dayOfWeek ?? null, dayOfMonth: action.dayOfMonth ?? null,
+          startDate: action.startDate || null, endDate: action.endDate || null,
+          createdAt: ts(), updatedAt: ts(),
+        };
+        enriched = { ...action, template };
+        if (uid) setDoc(doc(db, 'users', uid, 'recurringTemplates', template.id), template).catch(console.error);
+        break;
+      }
+
+      case 'UPDATE_RECURRING_TEMPLATE': {
+        const updates = { ...action.updates, updatedAt: ts() };
+        enriched = { ...action, updates };
+        if (uid) updateDoc(doc(db, 'users', uid, 'recurringTemplates', action.id), updates).catch(console.error);
+        break;
+      }
+
+      case 'DELETE_RECURRING_TEMPLATE': {
+        if (uid) deleteDoc(doc(db, 'users', uid, 'recurringTemplates', action.id)).catch(console.error);
+        break;
+      }
+
+      case 'GENERATE_RECURRING_FOR_DATE': {
+        if (s.generatedDates.includes(action.dateStr)) return; // skip entirely
+        const newTasks = s.recurringTemplates
+          .filter(tmpl => shouldRecurOnDate(tmpl, action.dateStr))
+          .map((tmpl, i) => ({
+            id: genId(), title: tmpl.title, notes: tmpl.notes, completed: false,
+            assignedDate: action.dateStr, recurringTemplateId: tmpl.id,
+            sortIndex: s.tasks.length + i,
+            createdAt: ts(), updatedAt: ts(),
+          }));
+        enriched = { ...action, newTasks };
+        if (uid) {
+          newTasks.forEach(task =>
+            setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(console.error)
+          );
+          // Use arrayUnion so this is atomic and idempotent
+          setDoc(doc(db, 'users', uid, 'settings'),
+            { generatedDates: arrayUnion(action.dateStr) },
+            { merge: true }).catch(console.error);
+        }
+        break;
+      }
+    }
+
+    baseDispatch(enriched);
+  }, [uid]);
+
+  // Subscribe to Firestore collections; migrate old plannerState doc if present
   useEffect(() => {
     if (!uid) {
-      // Sign-out: clear app state so next user starts clean
-      firestoreReadyRef.current = false;
-      dispatch({ type: 'LOAD_STATE', state: INITIAL_STATE });
+      settingsReadyRef.current = false;
+      baseDispatch({ type: 'RESET' });
       return;
     }
 
-    firestoreReadyRef.current = false;
+    settingsReadyRef.current = false;
+    let cancelled = false;
+    let unsubs = [];
 
-    // Load per-user localStorage cache immediately for fast render
-    const cached = getCachedState(uid);
-    if (cached) dispatch({ type: 'LOAD_STATE', state: cached });
+    const init = async () => {
+      // One-time migration from old single-document format
+      const oldSnap = await getDoc(doc(db, 'users', uid, 'plannerState'));
+      if (cancelled) return;
 
-    // Then confirm with Firestore (authoritative source of truth)
-    const load = async () => {
-      const docRef = doc(db, 'users', uid, 'plannerState');
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        firestoreReadyRef.current = true;
-        dispatch({ type: 'LOAD_STATE', state: snap.data() });
-      } else {
-        // New account — initialize with clean state
-        await setDoc(docRef, INITIAL_STATE);
-        firestoreReadyRef.current = true;
+      if (oldSnap.exists()) {
+        const old = oldSnap.data();
+        const batch = writeBatch(db);
+        (old.tasks || []).forEach((t, i) =>
+          batch.set(doc(db, 'users', uid, 'tasks', t.id), { ...t, sortIndex: i })
+        );
+        (old.scheduledBlocks || []).forEach(b =>
+          batch.set(doc(db, 'users', uid, 'scheduledBlocks', b.id), b)
+        );
+        (old.recurringTemplates || []).forEach(t =>
+          batch.set(doc(db, 'users', uid, 'recurringTemplates', t.id), t)
+        );
+        batch.set(doc(db, 'users', uid, 'settings'), {
+          generatedDates: old.generatedDates || [],
+          calendarMonth: old.calendarMonth ?? now.getMonth(),
+          calendarYear: old.calendarYear ?? now.getFullYear(),
+          lastVisitDate: old.lastVisitDate ?? today(),
+          showCompletedTasks: old.showCompletedTasks ?? false,
+          showCompletedBlocks: old.showCompletedBlocks ?? false,
+          lastCompletedTask: old.lastCompletedTask ?? null,
+        });
+        batch.delete(doc(db, 'users', uid, 'plannerState'));
+        await batch.commit();
+        if (cancelled) return;
       }
+
+      // Real-time listeners for all three data collections
+      unsubs = [
+        onSnapshot(collection(db, 'users', uid, 'tasks'), snap => {
+          if (!cancelled)
+            baseDispatch({ type: 'SET_TASKS', tasks: snap.docs.map(d => d.data()) });
+        }),
+        onSnapshot(collection(db, 'users', uid, 'scheduledBlocks'), snap => {
+          if (!cancelled)
+            baseDispatch({ type: 'SET_SCHEDULED_BLOCKS', scheduledBlocks: snap.docs.map(d => d.data()) });
+        }),
+        onSnapshot(collection(db, 'users', uid, 'recurringTemplates'), snap => {
+          if (!cancelled)
+            baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: snap.docs.map(d => d.data()) });
+        }),
+        onSnapshot(doc(db, 'users', uid, 'settings'), snap => {
+          if (cancelled) return;
+          if (snap.exists()) baseDispatch({ type: 'SET_SETTINGS', settings: snap.data() });
+          settingsReadyRef.current = true;
+        }),
+      ];
     };
-    load().catch(console.error);
+
+    init().catch(console.error);
+
+    return () => {
+      cancelled = true;
+      unsubs.forEach(u => u());
+    };
   }, [uid]);
 
-  // Save to per-user localStorage on every change (instant cache)
+  // Debounced save of navigation/UI settings (not covered by per-action writes)
   useEffect(() => {
-    if (!uid) return;
-    try { localStorage.setItem(localKey(uid), JSON.stringify(state)); } catch {}
-  }, [state, uid]);
-
-  // Debounced save to Firestore (1.5s after last change)
-  useEffect(() => {
-    if (!uid || !firestoreReadyRef.current) return;
+    if (!uid || !settingsReadyRef.current) return;
     const timer = setTimeout(() => {
-      const docRef = doc(db, 'users', uid, 'plannerState');
-      setDoc(docRef, state).catch(console.error);
-    }, 1500);
+      setDoc(doc(db, 'users', uid, 'settings'), {
+        calendarMonth: state.calendarMonth,
+        calendarYear: state.calendarYear,
+        lastVisitDate: state.lastVisitDate,
+        showCompletedTasks: state.showCompletedTasks,
+        showCompletedBlocks: state.showCompletedBlocks,
+        lastCompletedTask: state.lastCompletedTask,
+        currentPlannerDate: state.currentPlannerDate,
+      }, { merge: true }).catch(console.error);
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [state, uid]);
+  }, [
+    uid,
+    state.calendarMonth,
+    state.calendarYear,
+    state.lastVisitDate,
+    state.showCompletedTasks,
+    state.showCompletedBlocks,
+    state.lastCompletedTask,
+    state.currentPlannerDate,
+  ]);
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
 }
