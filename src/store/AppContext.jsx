@@ -259,7 +259,7 @@ export function AppProvider({ children }) {
         s.scheduledBlocks
           .filter(b => b.todoTaskId === action.id)
           .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
-        setDoc(doc(db, 'users', uid, 'settings'),
+        setDoc(doc(db, 'users', uid, 'settings', 'data'),
           { lastCompletedTask: completed ? { ...task, completed } : null },
           { merge: true }).catch(console.error);
         break;
@@ -273,7 +273,7 @@ export function AppProvider({ children }) {
         s.scheduledBlocks
           .filter(b => b.todoTaskId === lastCompletedTask.id)
           .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
-        setDoc(doc(db, 'users', uid, 'settings'), { lastCompletedTask: null }, { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', uid, 'settings', 'data'), { lastCompletedTask: null }, { merge: true }).catch(console.error);
         break;
       }
 
@@ -324,7 +324,7 @@ export function AppProvider({ children }) {
           if (completed) {
             const linkedTask = s.tasks.find(t => t.id === block.todoTaskId);
             if (linkedTask) {
-              setDoc(doc(db, 'users', uid, 'settings'),
+              setDoc(doc(db, 'users', uid, 'settings', 'data'),
                 { lastCompletedTask: { ...linkedTask, completed } },
                 { merge: true }).catch(console.error);
             }
@@ -374,7 +374,7 @@ export function AppProvider({ children }) {
             setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(console.error)
           );
           // Use arrayUnion so this is atomic and idempotent
-          setDoc(doc(db, 'users', uid, 'settings'),
+          setDoc(doc(db, 'users', uid, 'settings', 'data'),
             { generatedDates: arrayUnion(action.dateStr) },
             { merge: true }).catch(console.error);
         }
@@ -399,7 +399,7 @@ export function AppProvider({ children }) {
 
     const init = async () => {
       // One-time migration from old single-document format
-      const oldSnap = await getDoc(doc(db, 'users', uid, 'plannerState'));
+      const oldSnap = await getDoc(doc(db, 'users', uid, 'data', 'plannerState'));
       if (cancelled) return;
 
       if (oldSnap.exists()) {
@@ -414,7 +414,7 @@ export function AppProvider({ children }) {
         (old.recurringTemplates || []).forEach(t =>
           batch.set(doc(db, 'users', uid, 'recurringTemplates', t.id), t)
         );
-        batch.set(doc(db, 'users', uid, 'settings'), {
+        batch.set(doc(db, 'users', uid, 'settings', 'data'), {
           generatedDates: old.generatedDates || [],
           calendarMonth: old.calendarMonth ?? now.getMonth(),
           calendarYear: old.calendarYear ?? now.getFullYear(),
@@ -423,7 +423,7 @@ export function AppProvider({ children }) {
           showCompletedBlocks: old.showCompletedBlocks ?? false,
           lastCompletedTask: old.lastCompletedTask ?? null,
         });
-        batch.delete(doc(db, 'users', uid, 'plannerState'));
+        batch.delete(doc(db, 'users', uid, 'data', 'plannerState'));
         await batch.commit();
         if (cancelled) return;
       }
@@ -442,7 +442,7 @@ export function AppProvider({ children }) {
           if (!cancelled)
             baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: snap.docs.map(d => d.data()) });
         }),
-        onSnapshot(doc(db, 'users', uid, 'settings'), snap => {
+        onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
           if (snap.exists()) baseDispatch({ type: 'SET_SETTINGS', settings: snap.data() });
           settingsReadyRef.current = true;
@@ -462,7 +462,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!uid || !settingsReadyRef.current) return;
     const timer = setTimeout(() => {
-      setDoc(doc(db, 'users', uid, 'settings'), {
+      setDoc(doc(db, 'users', uid, 'settings', 'data'), {
         calendarMonth: state.calendarMonth,
         calendarYear: state.calendarYear,
         lastVisitDate: state.lastVisitDate,
