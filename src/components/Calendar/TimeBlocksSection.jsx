@@ -1,20 +1,35 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } from '../../utils/timeUtils.js'
 import { today as getToday } from '../../utils/dateUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
-const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
-const DEFAULT_END = 20 * 60  // 8 PM
-const floorTo30   = (mins) => Math.floor(mins / 30) * 30
-const BLOCKS_LEFT = 72       // px: gutter for time labels (matches CSS)
+const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
+const DEFAULT_START = 19 * 60  // 7 PM
+const DEFAULT_END   = 23 * 60  // 11 PM
+const floorTo30     = (mins) => Math.floor(mins / 30) * 30
+const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
 
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M1.5 5l3 3 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+function BlockContextMenu({ x, y, completed, onToggle, onClose }) {
+  useEffect(() => {
+    const close = () => onClose()
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className="block-context-menu"
+      style={{ position: 'fixed', left: x, top: y }}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <button onClick={onToggle}>
+        {completed ? 'Mark as Incomplete' : 'Mark as Done'}
+      </button>
+    </div>,
+    document.body
   )
 }
 
@@ -24,6 +39,9 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
     id: `block-${block.id}`,
     data: { type: 'scheduled-block', blockId: block.id },
   })
+  const [ctxMenu, setCtxMenu] = useState(null)
+  const longPressRef   = useRef(null)
+  const touchMovedRef  = useRef(false)
 
   const startMin = timeToMinutes(block.startTime)
   const endMin   = timeToMinutes(block.endTime)
@@ -46,13 +64,38 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
 
   const isShort = height < 40
 
+  const handleContextMenu = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleTouchStart = (e) => {
+    touchMovedRef.current = false
+    const touch = e.touches[0]
+    longPressRef.current = setTimeout(() => {
+      if (!touchMovedRef.current) {
+        setCtxMenu({ x: touch.clientX, y: touch.clientY })
+      }
+    }, 600)
+  }
+
+  const handleTouchMove = () => {
+    touchMovedRef.current = true
+    clearTimeout(longPressRef.current)
+  }
+
+  const handleTouchEnd = () => {
+    clearTimeout(longPressRef.current)
+  }
+
   const handleResizePointerDown = (e) => {
     e.stopPropagation()
     e.preventDefault()
     const startY = e.clientY
-    const origEndMin = timeToMinutes(block.endTime)
+    const origEndMin    = timeToMinutes(block.endTime)
     const blockStartMin = timeToMinutes(block.startTime)
-    document.body.style.cursor = 'ns-resize'
+    document.body.style.cursor     = 'ns-resize'
     document.body.style.userSelect = 'none'
     const onPointerMove = (e) => {
       const deltaMin = Math.round(((e.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15
@@ -60,7 +103,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
       dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: block.id, updates: { endTime: minutesToTime(newEnd) } })
     }
     const onPointerUp = () => {
-      document.body.style.cursor = ''
+      document.body.style.cursor     = ''
       document.body.style.userSelect = ''
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
@@ -69,32 +112,44 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
     window.addEventListener('pointerup', onPointerUp)
   }
 
+  // Merge our touch handlers with dnd-kit's in case it uses onTouchStart
+  const { onTouchStart: dndTouchStart, ...otherListeners } = listeners || {}
+
   return (
-    <div
-      ref={setNodeRef}
-      className={`sched-block${block.completed ? ' completed' : ''}`}
-      style={style}
-      onClick={e => { e.stopPropagation(); onEdit(block.id) }}
-      {...attributes}
-      {...listeners}
-    >
-      <div className="sched-block-header">
-        <div
-          className={`block-check${block.completed ? ' checked' : ''}`}
-          onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_BLOCK_COMPLETE', id: block.id }) }}
-        >
-          <CheckIcon />
-        </div>
-        {isShort && <span className="sched-block-title" style={{ fontSize: 16 }}>{block.title}</span>}
-      </div>
-      {!isShort && <div className="sched-block-title">{block.title}</div>}
-      {!isShort && block.notes && height > 64 && <div className="sched-block-notes">{block.notes}</div>}
+    <>
       <div
-        className="sched-block-resize-handle"
-        onPointerDown={handleResizePointerDown}
-        onClick={e => e.stopPropagation()}
-      />
-    </div>
+        ref={setNodeRef}
+        className={`sched-block${block.completed ? ' completed' : ''}`}
+        style={style}
+        onClick={e => { e.stopPropagation(); onEdit(block.id) }}
+        onContextMenu={handleContextMenu}
+        onTouchStart={(e) => { handleTouchStart(e); dndTouchStart?.(e) }}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        {...attributes}
+        {...otherListeners}
+      >
+        <div className="sched-block-title">{block.title}</div>
+        {!isShort && block.notes && <div className="sched-block-notes">{block.notes}</div>}
+        <div
+          className="sched-block-resize-handle"
+          onPointerDown={handleResizePointerDown}
+          onClick={e => e.stopPropagation()}
+        />
+      </div>
+      {ctxMenu && (
+        <BlockContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          completed={block.completed}
+          onToggle={() => {
+            dispatch({ type: 'TOGGLE_BLOCK_COMPLETE', id: block.id })
+            setCtxMenu(null)
+          }}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+    </>
   )
 }
 
@@ -118,7 +173,7 @@ export default function TimeBlocksSection({ date }) {
   const isCurrentDay = date === getToday()
   const displayStartMinutes = showWholeDay ? 0
     : isCurrentDay ? floorTo30(nowMinutes)
-    : 8 * 60
+    : DEFAULT_START
   const displayEndMinutes = showWholeDay ? 1440
     : (isCurrentDay && nowMinutes > DEFAULT_END) ? 1440
     : DEFAULT_END
@@ -164,7 +219,6 @@ export default function TimeBlocksSection({ date }) {
   }, [])
 
   const handleCanvasClick = (e) => {
-    // Compute Y relative to canvas top (getBoundingClientRect accounts for scroll)
     const rect = e.currentTarget.getBoundingClientRect()
     const y = e.clientY - rect.top
     const clickedMins = displayStartMinutes + (y / HOUR_HEIGHT) * 60
