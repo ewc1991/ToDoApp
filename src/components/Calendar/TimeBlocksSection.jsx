@@ -8,7 +8,7 @@ import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
 const DEFAULT_END = 20 * 60  // 8 PM
 const floorTo30   = (mins) => Math.floor(mins / 30) * 30
-const BLOCKS_LEFT = 80       // px: gutter for time labels
+const BLOCKS_LEFT = 72       // px: gutter for time labels (matches CSS)
 
 function CheckIcon() {
   return (
@@ -239,13 +239,6 @@ export default function TimeBlocksSection({ date }) {
           </div>
         </div>
 
-        {blocks.length === 0 && (
-          <div className="empty-state" style={{ marginTop: 24 }}>
-            <div className="empty-state-icon">🗓</div>
-            Nothing scheduled yet.<br />
-            Press <strong>T</strong> or tap <strong>+</strong> to add a time block,<br />or drag a task here.
-          </div>
-        )}
       </div>
 
       {schedulerState && (

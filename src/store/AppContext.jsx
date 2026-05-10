@@ -438,19 +438,26 @@ export function AppProvider({ children }) {
         if (cancelled) return;
       }
 
-      // Rollover coordination: wait for both settings and tasks first-fire
+      // Rollover coordination: wait for settings + tasks + templates first-fire
+      const ROLLOVER_TYPES = new Set(['weekly', 'biweekly', 'monthly']);
       let settingsFirstFired = false;
       let tasksFirstFired = false;
+      let templatesFirstFired = false;
       let shouldRollover = false;
       let cachedTasks = [];
+      let cachedTemplates = [];
 
       const tryRollover = () => {
-        if (!settingsFirstFired || !tasksFirstFired || !shouldRollover) return;
+        if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired || !shouldRollover) return;
         shouldRollover = false;
         const todayStr = today();
-        const tasksToRoll = cachedTasks.filter(t =>
-          t.assignedDate && t.assignedDate < todayStr && !t.completed && !t.recurringTemplateId
-        );
+        const templateMap = Object.fromEntries(cachedTemplates.map(t => [t.id, t]));
+        const tasksToRoll = cachedTasks.filter(t => {
+          if (!t.assignedDate || t.assignedDate >= todayStr || t.completed) return false;
+          if (!t.recurringTemplateId) return true;
+          const tmpl = templateMap[t.recurringTemplateId];
+          return tmpl && ROLLOVER_TYPES.has(tmpl.recurrenceType);
+        });
         if (tasksToRoll.length === 0) return;
         const nowTs = ts();
         const batch = writeBatch(db);
@@ -474,8 +481,10 @@ export function AppProvider({ children }) {
             baseDispatch({ type: 'SET_SCHEDULED_BLOCKS', scheduledBlocks: snap.docs.map(d => d.data()) });
         }),
         onSnapshot(collection(db, 'users', uid, 'recurringTemplates'), snap => {
-          if (!cancelled)
-            baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: snap.docs.map(d => d.data()) });
+          if (cancelled) return;
+          cachedTemplates = snap.docs.map(d => d.data());
+          baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: cachedTemplates });
+          if (!templatesFirstFired) { templatesFirstFired = true; tryRollover(); }
         }),
         onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
