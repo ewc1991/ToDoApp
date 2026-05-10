@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { auth } from '../firebase';
 import { useAuth } from './AuthContext';
 import { today } from '../utils/dateUtils';
 import { shouldRecurOnDate } from '../utils/recurringUtils';
@@ -25,24 +26,31 @@ const INITIAL_STATE = {
   showCompletedBlocks: false,
 };
 
-function getInitialState() {
+const localKey = (uid) => `planner-state-v1-${uid}`;
+
+function getCachedState(uid) {
   try {
-    const saved = localStorage.getItem('planner-state-v1');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const todayStr = today();
-      if (parsed.lastVisitDate !== todayStr) {
-        return { ...parsed, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
-      }
-      return { ...INITIAL_STATE, ...parsed };
-    }
+    const saved = localStorage.getItem(localKey(uid));
+    if (saved) return JSON.parse(saved);
   } catch {}
+  return null;
+}
+
+// Try to read per-user cache synchronously at startup (auth.currentUser is
+// available immediately on page reload when Firebase has a cached session).
+function getInitialState() {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    const cached = getCachedState(uid);
+    if (cached) return applyLoadedState(cached);
+  }
   return INITIAL_STATE;
 }
 
 function applyLoadedState(loaded) {
   const todayStr = today();
-  const merged = { ...INITIAL_STATE, ...loaded };
+  // Always land on calendar page when state is loaded (login or page refresh)
+  const merged = { ...INITIAL_STATE, ...loaded, currentPage: 'calendar' };
   if (merged.lastVisitDate !== todayStr) {
     return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
   }
@@ -232,12 +240,21 @@ export function AppProvider({ children }) {
   const uid = user?.uid ?? null;
   const firestoreReadyRef = useRef(false);
 
-  // Load from Firestore when user signs in
   useEffect(() => {
     if (!uid) {
+      // Sign-out: clear app state so next user starts clean
       firestoreReadyRef.current = false;
+      dispatch({ type: 'LOAD_STATE', state: INITIAL_STATE });
       return;
     }
+
+    firestoreReadyRef.current = false;
+
+    // Load per-user localStorage cache immediately for fast render
+    const cached = getCachedState(uid);
+    if (cached) dispatch({ type: 'LOAD_STATE', state: cached });
+
+    // Then confirm with Firestore (authoritative source of truth)
     const load = async () => {
       const docRef = doc(db, 'users', uid, 'plannerState');
       const snap = await getDoc(docRef);
@@ -245,18 +262,19 @@ export function AppProvider({ children }) {
         firestoreReadyRef.current = true;
         dispatch({ type: 'LOAD_STATE', state: snap.data() });
       } else {
-        // First login — migrate existing localStorage data to Firestore
-        await setDoc(docRef, state);
+        // New account — initialize with clean state
+        await setDoc(docRef, INITIAL_STATE);
         firestoreReadyRef.current = true;
       }
     };
     load().catch(console.error);
-  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [uid]);
 
-  // Save to localStorage on every change (instant cache)
+  // Save to per-user localStorage on every change (instant cache)
   useEffect(() => {
-    try { localStorage.setItem('planner-state-v1', JSON.stringify(state)); } catch {}
-  }, [state]);
+    if (!uid) return;
+    try { localStorage.setItem(localKey(uid), JSON.stringify(state)); } catch {}
+  }, [state, uid]);
 
   // Debounced save to Firestore (1.5s after last change)
   useEffect(() => {
