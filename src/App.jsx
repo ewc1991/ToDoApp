@@ -65,6 +65,7 @@ export default function App() {
         {MOBILE_TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
+            data-tab={id}
             className={`mobile-tab${state.currentPage === id ? ' active' : ''}`}
             onClick={() => dispatch({ type: 'NAVIGATE_PAGE', page: id })}
           >

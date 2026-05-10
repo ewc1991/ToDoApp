@@ -19,6 +19,7 @@ export default function Header() {
         {TABS.map(tab => (
           <button
             key={tab.id}
+            data-tab={tab.id}
             className={`header-tab${state.currentPage === tab.id ? ' active' : ''}`}
             onClick={() => dispatch({ type: 'NAVIGATE_PAGE', page: tab.id })}
           >
