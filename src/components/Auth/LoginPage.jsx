@@ -79,12 +79,12 @@ export default function LoginPage() {
                 />
                 {error && <p className="login-error">{error}</p>}
                 <button className="login-btn" type="submit" disabled={loading}>
-                  {loading ? 'Sending…' : 'Send reset email'}
+                  {loading ? 'Sending…' : 'Send Reset Email'}
                 </button>
               </form>
             )}
             <button className="login-link" onClick={() => switchMode('signin')}>
-              Back to sign in
+              Back To Sign In
             </button>
           </>
         ) : (
@@ -113,22 +113,22 @@ export default function LoginPage() {
               />
               {error && <p className="login-error">{error}</p>}
               <button className="login-btn" type="submit" disabled={loading}>
-                {loading ? '…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+                {loading ? '…' : mode === 'signup' ? 'Create Account' : 'Sign In'}
               </button>
             </form>
             <div className="login-links">
               {mode === 'signin' ? (
                 <>
                   <button className="login-link" onClick={() => switchMode('signup')}>
-                    Create an account
+                    Create An Account
                   </button>
                   <button className="login-link" onClick={() => switchMode('reset')}>
-                    Forgot password?
+                    Forgot Password?
                   </button>
                 </>
               ) : (
                 <button className="login-link" onClick={() => switchMode('signin')}>
-                  Already have an account? Sign in
+                  Already Have An Account? Sign In
                 </button>
               )}
             </div>

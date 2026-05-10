@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 
@@ -11,6 +11,19 @@ const TABS = [
 export default function Header() {
   const { state, dispatch } = useApp()
   const { user, logOut } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  const initials = user?.email ? user.email[0].toUpperCase() : '?'
 
   return (
     <header className="header">
@@ -27,9 +40,28 @@ export default function Header() {
           </button>
         ))}
       </nav>
-      <div className="header-user">
-        {user?.email && <span className="header-email">{user.email}</span>}
-        <button className="header-signout" onClick={logOut}>Sign out</button>
+      <div className="header-user" ref={menuRef}>
+        <button
+          className={`header-avatar${menuOpen ? ' open' : ''}`}
+          onClick={() => setMenuOpen(o => !o)}
+          title={user?.email}
+        >
+          {initials}
+        </button>
+        {menuOpen && (
+          <div className="header-dropdown">
+            {user?.email && (
+              <div className="header-dropdown-email">{user.email}</div>
+            )}
+            <div className="header-dropdown-divider" />
+            <button
+              className="header-dropdown-item"
+              onClick={() => { logOut(); setMenuOpen(false) }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )
