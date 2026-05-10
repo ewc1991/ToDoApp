@@ -675,6 +675,8 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   .unscheduled-section { width: 100% !important; border-bottom: 1px solid var(--border); max-height: 40vh; }
   .panel-divider { display: none; }
   .header-brand { display: none; }
+  .header-email { display: none; }
   .calendar-view { padding: 12px; }
   .todo-page, .recurring-page { padding: 0 12px; }
+  .login-card { padding: 32px 20px; min-width: 0; width: calc(100% - 32px); }
 }
