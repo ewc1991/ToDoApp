@@ -29,10 +29,10 @@ const INITIAL_STATE = {
   showCompletedBlocks: false,
 };
 
-// Merge settings from Firestore into current state, resetting UI position to calendar
+// Merge settings from Firestore into current state, preserving client-only navigation state
 function applySettings(state, settings) {
   const todayStr = today();
-  const merged = { ...state, ...settings, currentPage: 'calendar' };
+  const merged = { ...state, ...settings };
   if (merged.lastVisitDate !== todayStr) {
     return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
   }
