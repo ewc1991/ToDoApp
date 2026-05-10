@@ -197,6 +197,16 @@ function reducer(state, action) {
     case 'TOGGLE_SHOW_COMPLETED_BLOCKS':
       return { ...state, showCompletedBlocks: !state.showCompletedBlocks };
 
+    case 'ROLLOVER_TASKS': {
+      const idSet = new Set(action.taskIds);
+      return {
+        ...state,
+        tasks: state.tasks.map(t =>
+          idSet.has(t.id) ? { ...t, assignedDate: action.toDate, updatedAt: ts() } : t
+        ),
+      };
+    }
+
     default:
       return state;
   }
@@ -428,11 +438,36 @@ export function AppProvider({ children }) {
         if (cancelled) return;
       }
 
+      // Rollover coordination: wait for both settings and tasks first-fire
+      let settingsFirstFired = false;
+      let tasksFirstFired = false;
+      let shouldRollover = false;
+      let cachedTasks = [];
+
+      const tryRollover = () => {
+        if (!settingsFirstFired || !tasksFirstFired || !shouldRollover) return;
+        shouldRollover = false;
+        const todayStr = today();
+        const tasksToRoll = cachedTasks.filter(t =>
+          t.assignedDate && t.assignedDate < todayStr && !t.completed && !t.recurringTemplateId
+        );
+        if (tasksToRoll.length === 0) return;
+        const nowTs = ts();
+        const batch = writeBatch(db);
+        tasksToRoll.forEach(t => {
+          batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
+        });
+        batch.commit().catch(console.error);
+        baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
+      };
+
       // Real-time listeners for all three data collections
       unsubs = [
         onSnapshot(collection(db, 'users', uid, 'tasks'), snap => {
-          if (!cancelled)
-            baseDispatch({ type: 'SET_TASKS', tasks: snap.docs.map(d => d.data()) });
+          if (cancelled) return;
+          cachedTasks = snap.docs.map(d => d.data());
+          baseDispatch({ type: 'SET_TASKS', tasks: cachedTasks });
+          if (!tasksFirstFired) { tasksFirstFired = true; tryRollover(); }
         }),
         onSnapshot(collection(db, 'users', uid, 'scheduledBlocks'), snap => {
           if (!cancelled)
@@ -444,8 +479,20 @@ export function AppProvider({ children }) {
         }),
         onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
-          if (snap.exists()) baseDispatch({ type: 'SET_SETTINGS', settings: snap.data() });
-          settingsReadyRef.current = true;
+          if (snap.exists()) {
+            const settings = snap.data();
+            if (!settingsFirstFired && settings.lastVisitDate && settings.lastVisitDate !== today()) {
+              shouldRollover = true;
+            }
+            baseDispatch({ type: 'SET_SETTINGS', settings });
+          }
+          if (!settingsFirstFired) {
+            settingsFirstFired = true;
+            settingsReadyRef.current = true;
+            tryRollover();
+          } else {
+            settingsReadyRef.current = true;
+          }
         }),
       ];
     };
