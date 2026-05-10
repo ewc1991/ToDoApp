@@ -27,9 +27,7 @@ export default function Header() {
         ))}
       </nav>
       <div className="header-user">
-        {user?.photoURL && (
-          <img className="header-avatar" src={user.photoURL} alt={user.displayName ?? ''} referrerPolicy="no-referrer" />
-        )}
+        {user?.email && <span className="header-email">{user.email}</span>}
         <button className="header-signout" onClick={logOut}>Sign out</button>
       </div>
     </header>

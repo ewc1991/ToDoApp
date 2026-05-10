@@ -1,23 +1,139 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../store/AuthContext';
 
+function authErrorMessage(code) {
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'Invalid email or password.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/invalid-email':
+      return 'Invalid email address.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Try again later.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, signUp, resetPassword } = useAuth();
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'reset'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (mode === 'reset') {
+        await resetPassword(email);
+        setResetSent(true);
+      } else if (mode === 'signup') {
+        await signUp(email, password);
+      } else {
+        await signIn(email, password);
+      }
+    } catch (err) {
+      setError(authErrorMessage(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError('');
+    setResetSent(false);
+    setPassword('');
+  };
 
   return (
     <div className="login-page">
       <div className="login-card">
         <span className="login-brand">Planner</span>
-        <p className="login-subtitle">Sign in to access your planner</p>
-        <button className="btn-google" onClick={signIn}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
-            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-            <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
-            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-          </svg>
-          Sign in with Google
-        </button>
+
+        {mode === 'reset' ? (
+          <>
+            <p className="login-subtitle">Enter your email to reset your password.</p>
+            {resetSent ? (
+              <p className="login-success">Check your email for a reset link.</p>
+            ) : (
+              <form className="login-form" onSubmit={handleSubmit}>
+                <input
+                  className="login-input"
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+                {error && <p className="login-error">{error}</p>}
+                <button className="login-btn" type="submit" disabled={loading}>
+                  {loading ? 'Sending…' : 'Send reset email'}
+                </button>
+              </form>
+            )}
+            <button className="login-link" onClick={() => switchMode('signin')}>
+              Back to sign in
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="login-subtitle">
+              {mode === 'signup' ? 'Create an account.' : 'Sign in to your planner.'}
+            </p>
+            <form className="login-form" onSubmit={handleSubmit}>
+              <input
+                className="login-input"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+              <input
+                className="login-input"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              {error && <p className="login-error">{error}</p>}
+              <button className="login-btn" type="submit" disabled={loading}>
+                {loading ? '…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+              </button>
+            </form>
+            <div className="login-links">
+              {mode === 'signin' ? (
+                <>
+                  <button className="login-link" onClick={() => switchMode('signup')}>
+                    Create an account
+                  </button>
+                  <button className="login-link" onClick={() => switchMode('reset')}>
+                    Forgot password?
+                  </button>
+                </>
+              ) : (
+                <button className="login-link" onClick={() => switchMode('signin')}>
+                  Already have an account? Sign in
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
