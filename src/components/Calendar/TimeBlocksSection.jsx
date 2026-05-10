@@ -7,9 +7,8 @@ import { today as getToday } from '../../utils/dateUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
 const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
-const DEFAULT_START = 19 * 60  // 7 PM
-const DEFAULT_END   = 23 * 60  // 11 PM
-const floorTo30     = (mins) => Math.floor(mins / 30) * 30
+const DEFAULT_START =  7 * 60  // 7 AM
+const DEFAULT_END   = 19 * 60  // 7 PM
 const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
 
 function BlockContextMenu({ x, y, completed, onToggle, onClose }) {
@@ -170,13 +169,8 @@ export default function TimeBlocksSection({ date }) {
     return () => clearInterval(id)
   }, [])
 
-  const isCurrentDay = date === getToday()
-  const displayStartMinutes = showWholeDay ? 0
-    : isCurrentDay ? floorTo30(nowMinutes)
-    : DEFAULT_START
-  const displayEndMinutes = showWholeDay ? 1440
-    : (isCurrentDay && nowMinutes > DEFAULT_END) ? 1440
-    : DEFAULT_END
+  const displayStartMinutes = showWholeDay ? 0 : DEFAULT_START
+  const displayEndMinutes   = showWholeDay ? 1440 : DEFAULT_END
 
   const blocks = state.scheduledBlocks.filter(b => b.date === date)
 
