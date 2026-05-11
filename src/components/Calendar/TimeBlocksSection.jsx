@@ -132,11 +132,13 @@ export default function TimeBlocksSection({ date }) {
   }, [showWholeDay, blocks])
 
   const displayBlocks = useMemo(() => {
-    return blocks.filter(b =>
-      timeToMinutes(b.startTime) < displayEndMinutes &&
-      timeToMinutes(b.endTime)   > displayStartMinutes
-    )
-  }, [blocks, displayStartMinutes, displayEndMinutes])
+    return blocks.filter(b => {
+      // Hide completed blocks whose time has already passed (Whole Day shows all)
+      if (!showWholeDay && b.completed && nowMinutes > timeToMinutes(b.endTime)) return false
+      return timeToMinutes(b.startTime) < displayEndMinutes &&
+             timeToMinutes(b.endTime)   > displayStartMinutes
+    })
+  }, [blocks, displayStartMinutes, displayEndMinutes, showWholeDay, nowMinutes])
 
   const layouted     = useMemo(() => layoutBlocks(displayBlocks), [displayBlocks])
   const canvasHeight = ((displayEndMinutes - displayStartMinutes) / 60) * HOUR_HEIGHT
