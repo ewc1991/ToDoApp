@@ -4,10 +4,10 @@ import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
-const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
-const DEFAULT_START =  7 * 60  // 7 AM
-const DEFAULT_END   = 19 * 60  // 7 PM
-const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
+const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
+const DEFAULT_END = 19 * 60  // 7 PM
+const floorTo30   = (mins) => Math.floor(mins / 30) * 30
+const BLOCKS_LEFT = 72       // px: gutter for time labels (matches CSS)
 
 function CheckIcon() {
   return (
@@ -119,17 +119,19 @@ export default function TimeBlocksSection({ date }) {
     [state.scheduledBlocks, date]
   )
 
-  // Expand the default 7AM–7PM window to always include incomplete blocks
+  // Start from current time; expand for incomplete blocks; end at 7PM (or later for incomplete)
   const { displayStartMinutes, displayEndMinutes } = useMemo(() => {
     if (showWholeDay) return { displayStartMinutes: 0, displayEndMinutes: 1440 }
+    const baseStart = floorTo30(nowMinutes)
+    const baseEnd   = Math.max(DEFAULT_END, baseStart + 60) // always at least 1h visible
     const incomplete = blocks.filter(b => !b.completed)
-    const start = incomplete.reduce((min, b) => Math.min(min, timeToMinutes(b.startTime)), DEFAULT_START)
-    const end   = incomplete.reduce((max, b) => Math.max(max, timeToMinutes(b.endTime)),   DEFAULT_END)
+    const start = incomplete.reduce((min, b) => Math.min(min, timeToMinutes(b.startTime)), baseStart)
+    const end   = incomplete.reduce((max, b) => Math.max(max, timeToMinutes(b.endTime)),   baseEnd)
     return {
-      displayStartMinutes: Math.min(DEFAULT_START, start),
-      displayEndMinutes:   Math.max(DEFAULT_END, end),
+      displayStartMinutes: Math.max(0, start),
+      displayEndMinutes:   Math.min(1440, end),
     }
-  }, [showWholeDay, blocks])
+  }, [showWholeDay, blocks, nowMinutes])
 
   const displayBlocks = useMemo(() => {
     return blocks.filter(b => {
