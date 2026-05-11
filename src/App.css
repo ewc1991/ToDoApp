@@ -552,22 +552,19 @@ a { color: inherit; text-decoration: none; }
   background: transparent; transition: background .1s;
 }
 .sched-block:hover .sched-block-resize-handle::after { background: var(--coral-border); }
-.block-context-menu {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-md);
-  padding: 4px;
-  z-index: 10000;
-  min-width: 150px;
+.sched-block-header { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.block-done-btn {
+  flex-shrink: 0; width: 16px; height: 16px;
+  border: 1.5px solid var(--coral-border); border-radius: 50%;
+  background: transparent; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; opacity: .7;
 }
-.block-context-menu button {
-  display: block; width: 100%; padding: 7px 12px;
-  background: none; border: none; border-radius: var(--r-sm);
-  text-align: left; font-size: 13px; color: var(--text);
-  cursor: pointer; font-family: inherit;
-}
-.block-context-menu button:hover { background: var(--surface-2); }
+.block-done-btn:hover { border-color: var(--coral); background: var(--coral-light); opacity: 1; }
+.block-done-btn.checked { background: var(--coral); border-color: var(--coral-dark); opacity: 1; }
+.block-done-btn svg { width: 7px; height: 7px; stroke: var(--coral); display: none; }
+.block-done-btn:hover svg { display: block; opacity: .5; }
+.block-done-btn.checked svg { display: block; opacity: 1; stroke: #fff; }
 
 /* ── ToDo Page ─────────────────────────────────────────── */
 .todo-page {
@@ -727,6 +724,11 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
 }
 .day-btn:hover { border-color: var(--gold-border); color: var(--gold-dark); background: var(--gold-light); }
 .day-btn.active { border-color: var(--gold); color: var(--gold-dark); background: var(--gold-light); font-weight: 700; }
+.recur-full { grid-column: 1 / -1; }
+.custom-interval-row { display: flex; align-items: center; gap: 10px; }
+.recur-unit-toggle { display: flex; gap: 6px; flex: 1; }
+.recur-unit-toggle .recur-type-btn { flex: 1; }
+.occurrence-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 
 /* ── Drag overlay ──────────────────────────────────────── */
 .drag-overlay {

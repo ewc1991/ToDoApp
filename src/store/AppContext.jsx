@@ -347,7 +347,12 @@ export function AppProvider({ children }) {
         const template = {
           id: genId(), title: action.title, notes: action.notes || '',
           recurrenceType: action.recurrenceType,
-          dayOfWeek: action.dayOfWeek ?? null, dayOfMonth: action.dayOfMonth ?? null,
+          dayOfWeek:             action.dayOfWeek             ?? null,
+          dayOfMonth:            action.dayOfMonth            ?? null,
+          monthlyMode:           action.monthlyMode           ?? null,
+          monthlyWeekOccurrence: action.monthlyWeekOccurrence ?? null,
+          customInterval:        action.customInterval        ?? null,
+          customUnit:            action.customUnit            ?? null,
           startDate: action.startDate || null, endDate: action.endDate || null,
           createdAt: ts(), updatedAt: ts(),
         };

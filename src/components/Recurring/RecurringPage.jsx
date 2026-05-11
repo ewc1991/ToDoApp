@@ -11,15 +11,33 @@ const RECUR_LABELS = {
   monthly: 'Monthly',
 }
 
-const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DAY_SHORT  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const OCC_LABELS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', '-1': 'Last' }
+
+function monthlyDayLabel(tmpl) {
+  if (tmpl.monthlyMode === 'dayOfWeek' && tmpl.dayOfWeek != null) {
+    const occ = OCC_LABELS[tmpl.monthlyWeekOccurrence] ?? `${tmpl.monthlyWeekOccurrence}th`
+    return `the ${occ} ${DAY_SHORT[tmpl.dayOfWeek]}`
+  }
+  return tmpl.dayOfMonth ? `day ${tmpl.dayOfMonth}` : null
+}
 
 function scheduleLabel(tmpl) {
+  if (tmpl.recurrenceType === 'custom') {
+    const n    = tmpl.customInterval ?? 1
+    const unit = tmpl.customUnit ?? 'weeks'
+    const base = `Every ${n} ${n === 1 ? unit.replace(/s$/, '') : unit}`
+    if (unit === 'weeks' && tmpl.dayOfWeek != null) return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}`
+    const dayLbl = monthlyDayLabel(tmpl)
+    return dayLbl ? `${base} on ${dayLbl}` : base
+  }
   const base = RECUR_LABELS[tmpl.recurrenceType] || tmpl.recurrenceType
   if ((tmpl.recurrenceType === 'weekly' || tmpl.recurrenceType === 'biweekly') && tmpl.dayOfWeek != null) {
     return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}`
   }
-  if (tmpl.recurrenceType === 'monthly' && tmpl.dayOfMonth) {
-    return `${base} on day ${tmpl.dayOfMonth}`
+  if (tmpl.recurrenceType === 'monthly') {
+    const dayLbl = monthlyDayLabel(tmpl)
+    return dayLbl ? `${base} on ${dayLbl}` : base
   }
   return base
 }
