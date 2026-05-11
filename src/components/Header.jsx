@@ -8,11 +8,33 @@ const TABS = [
   { id: 'recurring', label: 'Recurring' },
 ]
 
+function useNow() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+  return now
+}
+
+function formatClock(date) {
+  const mm   = String(date.getMonth() + 1).padStart(2, '0')
+  const dd   = String(date.getDate()).padStart(2, '0')
+  const yy   = String(date.getFullYear()).slice(2)
+  const h    = date.getHours()
+  const min  = String(date.getMinutes()).padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12  = h % 12 || 12
+  return { date: `${mm}/${dd}/${yy}`, time: `${h12}:${min} ${ampm}` }
+}
+
 export default function Header() {
   const { state, dispatch } = useApp()
   const { user, logOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
+  const now = useNow()
+  const clock = formatClock(now)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -41,6 +63,10 @@ export default function Header() {
         ))}
       </nav>
       <div className="header-user" ref={menuRef}>
+        <div className="header-clock">
+          <span className="header-clock-date">{clock.date}</span>
+          <span className="header-clock-time">{clock.time}</span>
+        </div>
         <button
           className={`header-avatar${menuOpen ? ' open' : ''}`}
           onClick={() => setMenuOpen(o => !o)}

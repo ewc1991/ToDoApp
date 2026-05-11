@@ -125,7 +125,10 @@ a { color: inherit; text-decoration: none; }
 .header-tab[data-tab="todo"].active     { background: var(--coral-light); color: var(--coral-dark); font-weight: 600; }
 .header-tab[data-tab="recurring"].active{ background: var(--teal-light);  color: var(--teal-dark);  font-weight: 600; }
 
-.header-user { margin-left: auto; display: flex; align-items: center; position: relative; }
+.header-user { margin-left: auto; display: flex; align-items: center; gap: 10px; position: relative; }
+.header-clock { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+.header-clock-date { font-size: 11px; color: var(--text-3); font-weight: 500; }
+.header-clock-time { font-size: 13px; color: var(--text-2); font-weight: 600; }
 .header-avatar {
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--grad-brand); color: #fff;
