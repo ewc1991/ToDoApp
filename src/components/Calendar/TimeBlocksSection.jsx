@@ -132,12 +132,11 @@ export default function TimeBlocksSection({ date }) {
   }, [showWholeDay, blocks])
 
   const displayBlocks = useMemo(() => {
-    return blocks.filter(b => {
-      if (!state.showCompletedBlocks && b.completed) return false
-      return timeToMinutes(b.startTime) < displayEndMinutes &&
-             timeToMinutes(b.endTime)   > displayStartMinutes
-    })
-  }, [blocks, state.showCompletedBlocks, displayStartMinutes, displayEndMinutes])
+    return blocks.filter(b =>
+      timeToMinutes(b.startTime) < displayEndMinutes &&
+      timeToMinutes(b.endTime)   > displayStartMinutes
+    )
+  }, [blocks, displayStartMinutes, displayEndMinutes])
 
   const layouted     = useMemo(() => layoutBlocks(displayBlocks), [displayBlocks])
   const canvasHeight = ((displayEndMinutes - displayStartMinutes) / 60) * HOUR_HEIGHT
@@ -190,14 +189,6 @@ export default function TimeBlocksSection({ date }) {
               onChange={e => setShowWholeDay(e.target.checked)}
             />
             Whole Day
-          </label>
-          <label className="show-completed-toggle">
-            <input
-              type="checkbox"
-              checked={state.showCompletedBlocks}
-              onChange={() => dispatch({ type: 'TOGGLE_SHOW_COMPLETED_BLOCKS' })}
-            />
-            View Completed
           </label>
           <button className="add-btn" title="Add time block (T)" onClick={() => openScheduler()}>+</button>
         </div>
