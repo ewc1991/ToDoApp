@@ -3,11 +3,13 @@ import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
+import { today as getToday } from '../../utils/dateUtils.js'
 
-const ALL_SLOTS   = Array.from({ length: 48 }, (_, i) => i * 30)
-const DEFAULT_END = 19 * 60  // 7 PM
-const floorTo30   = (mins) => Math.floor(mins / 30) * 30
-const BLOCKS_LEFT = 72       // px: gutter for time labels (matches CSS)
+const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
+const DEFAULT_START =  7 * 60  // 7 AM
+const DEFAULT_END   = 19 * 60  // 7 PM
+const floorTo30     = (mins) => Math.floor(mins / 30) * 30
+const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
 
 function CheckIcon() {
   return (
@@ -119,11 +121,14 @@ export default function TimeBlocksSection({ date }) {
     [state.scheduledBlocks, date]
   )
 
-  // Start from current time; expand for incomplete blocks; end at 7PM (or later for incomplete)
+  const isToday = date === getToday()
+
+  // On today: start from current time. On other days: start at 7AM.
+  // Always expand to include incomplete blocks.
   const { displayStartMinutes, displayEndMinutes } = useMemo(() => {
     if (showWholeDay) return { displayStartMinutes: 0, displayEndMinutes: 1440 }
-    const baseStart = floorTo30(nowMinutes)
-    const baseEnd   = Math.max(DEFAULT_END, baseStart + 60) // always at least 1h visible
+    const baseStart = isToday ? floorTo30(nowMinutes) : DEFAULT_START
+    const baseEnd   = Math.max(DEFAULT_END, baseStart + 60)
     const incomplete = blocks.filter(b => !b.completed)
     const start = incomplete.reduce((min, b) => Math.min(min, timeToMinutes(b.startTime)), baseStart)
     const end   = incomplete.reduce((max, b) => Math.max(max, timeToMinutes(b.endTime)),   baseEnd)
@@ -131,12 +136,12 @@ export default function TimeBlocksSection({ date }) {
       displayStartMinutes: Math.max(0, start),
       displayEndMinutes:   Math.min(1440, end),
     }
-  }, [showWholeDay, blocks, nowMinutes])
+  }, [showWholeDay, blocks, nowMinutes, isToday])
 
   const displayBlocks = useMemo(() => {
     return blocks.filter(b => {
-      // Hide completed blocks whose time has already passed (Whole Day shows all)
-      if (!showWholeDay && b.completed && nowMinutes > timeToMinutes(b.endTime)) return false
+      // On today: hide completed blocks whose time has already passed (Whole Day shows all)
+      if (isToday && !showWholeDay && b.completed && nowMinutes > timeToMinutes(b.endTime)) return false
       return timeToMinutes(b.startTime) < displayEndMinutes &&
              timeToMinutes(b.endTime)   > displayStartMinutes
     })
