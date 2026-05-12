@@ -375,7 +375,7 @@ a { color: inherit; text-decoration: none; }
   width: 300px; min-width: 160px;
   display: flex; flex-direction: column;
   overflow: hidden; flex-shrink: 0;
-  background: var(--bg);
+  background: #fffdf4;
 }
 .panel-divider {
   width: 4px; flex-shrink: 0; cursor: col-resize;
@@ -386,6 +386,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px 6px; flex-shrink: 0;
 }
+.section-header-left { display: flex; align-items: center; gap: 7px; }
 .section-title {
   font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
   background: var(--grad-warm);
@@ -393,6 +394,14 @@ a { color: inherit; text-decoration: none; }
   -webkit-text-fill-color: transparent;
   background-clip: text;
   line-height: 1;
+}
+.unscheduled-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 19px; height: 19px; padding: 0 5px;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  background: var(--grad-brand); color: #fff;
+  border-radius: 99px;
+  box-shadow: 0 1px 4px rgba(232,96,74,.35);
 }
 .section-actions { display: flex; align-items: center; gap: 6px; }
 .add-btn {

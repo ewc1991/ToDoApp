@@ -52,6 +52,7 @@ function SortableTask({ task, onEdit }) {
 }
 
 export default function UnscheduledSection({ tasks, date, activeId, width }) {
+  const pendingCount = tasks.filter(t => !t.completed).length
   const { dispatch } = useApp()
   const [editId, setEditId] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -95,7 +96,10 @@ export default function UnscheduledSection({ tasks, date, activeId, width }) {
   return (
     <section className="unscheduled-section" style={width != null ? { width, minWidth: width } : undefined}>
       <div className="section-header">
-        <span className="section-title">Unscheduled</span>
+        <div className="section-header-left">
+          <span className="section-title">Unscheduled</span>
+          {pendingCount > 0 && <span className="unscheduled-count">{pendingCount}</span>}
+        </div>
         <div className="section-actions">
           <button
             className="add-btn"
