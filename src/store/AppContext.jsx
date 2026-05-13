@@ -176,7 +176,9 @@ function reducer(state, action) {
       return {
         ...state,
         currentPage: action.page,
-        currentPlannerDate: action.page === 'calendar' ? null : state.currentPlannerDate,
+        currentPlannerDate: (action.page === 'calendar' && state.currentPage === 'calendar')
+          ? null
+          : state.currentPlannerDate,
       };
 
     case 'NAVIGATE_DATE':
