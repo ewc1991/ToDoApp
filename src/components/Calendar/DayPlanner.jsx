@@ -68,6 +68,15 @@ export default function DayPlanner({ date }) {
     state.tasks.filter(t => t.assignedDate === date && !scheduledTaskIds.has(t.id))
   , [state.tasks, date, scheduledTaskIds])
 
+  const backlogTasks = useMemo(() =>
+    state.tasks.filter(t =>
+      !t.recurringTemplateId &&
+      !t.assignedDate &&
+      !t.completed &&
+      !scheduledTaskIds.has(t.id)
+    )
+  , [state.tasks, scheduledTaskIds])
+
   const handleDragStart = ({ active }) => {
     if (String(active.id).startsWith('block-')) return  // block drag: no overlay
     const task = state.tasks.find(t => t.id === active.id)
@@ -135,7 +144,7 @@ export default function DayPlanner({ date }) {
         onDragEnd={handleDragEnd}
       >
         <div className="planner-body">
-          <UnscheduledSection tasks={unscheduledTasks} date={date} activeId={activeTask?.id} width={panelWidth} />
+          <UnscheduledSection tasks={unscheduledTasks} backlogTasks={backlogTasks} date={date} activeId={activeTask?.id} width={panelWidth} />
           <div
             className={`panel-divider${dividerDragging ? ' dragging' : ''}`}
             onMouseDown={handleDividerMouseDown}

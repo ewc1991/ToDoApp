@@ -51,8 +51,27 @@ function SortableTask({ task, onEdit }) {
   )
 }
 
-export default function UnscheduledSection({ tasks, date, activeId, width }) {
-  const pendingCount = tasks.filter(t => !t.completed).length
+function StaticTask({ task, onEdit }) {
+  const { dispatch } = useApp()
+  const completed = task.completed
+  return (
+    <div className={`task-item static-task${completed ? ' completed' : ''}`}>
+      <div
+        className={`task-check${completed ? ' checked' : ''}`}
+        onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
+      >
+        <CheckIcon />
+      </div>
+      <div className="task-content" onClick={() => onEdit(task.id)}>
+        <div className="task-title">{task.title}</div>
+        {task.notes && <div className="task-notes">{task.notes}</div>}
+      </div>
+    </div>
+  )
+}
+
+export default function UnscheduledSection({ tasks, backlogTasks = [], date, activeId, width }) {
+  const pendingCount = tasks.filter(t => !t.completed).length + backlogTasks.length
   const { dispatch } = useApp()
   const [editId, setEditId] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -113,13 +132,29 @@ export default function UnscheduledSection({ tasks, date, activeId, width }) {
         ref={setDropRef}
         className={`unscheduled-list${isOver && activeId ? ' drag-over' : ''}`}
       >
+        {(tasks.length > 0 || backlogTasks.length > 0) && (
+          <div className="task-group-label">Due Today</div>
+        )}
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
             <SortableTask key={task.id} task={task} onEdit={setEditId} />
           ))}
         </SortableContext>
 
-        {tasks.length === 0 && !showAdd && (
+        {tasks.length === 0 && backlogTasks.length > 0 && !showAdd && (
+          <div className="task-group-empty">Nothing assigned for today.</div>
+        )}
+
+        {backlogTasks.length > 0 && (
+          <>
+            <div className="task-group-label task-group-label--todo">To Do</div>
+            {backlogTasks.map(task => (
+              <StaticTask key={task.id} task={task} onEdit={setEditId} />
+            ))}
+          </>
+        )}
+
+        {tasks.length === 0 && backlogTasks.length === 0 && !showAdd && (
           <div className="empty-state">
             <div className="empty-state-icon">☑</div>
             Nothing here yet.<br />

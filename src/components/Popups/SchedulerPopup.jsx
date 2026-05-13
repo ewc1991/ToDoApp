@@ -14,6 +14,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const [notes, setNotes] = useState(existing?.notes || prefill?.notes || '')
   const [startTime, setStartTime] = useState(defaultStart)
   const [endTime, setEndTime] = useState(defaultEnd)
+  const [blockDate, setBlockDate] = useState(existing?.date || date)
   const titleRef = useRef(null)
 
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
@@ -31,7 +32,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
     if (timeToMinutes(endTime) <= timeToMinutes(startTime)) return
 
     if (existing) {
-      dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: existing.id, updates: { title: title.trim(), notes, startTime, endTime } })
+      dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: existing.id, updates: { title: title.trim(), notes, startTime, endTime, date: blockDate } })
     } else {
       dispatch({
         type: 'ADD_SCHEDULED_BLOCK',
@@ -73,6 +74,12 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
         <label className="form-label">Title</label>
         <input ref={titleRef} className="form-input" placeholder="Task title" value={title} onChange={e => setTitle(e.target.value)} />
       </div>
+      {existing && (
+        <div className="form-group">
+          <label className="form-label">Date</label>
+          <input type="date" className="form-input" value={blockDate} onChange={e => setBlockDate(e.target.value)} />
+        </div>
+      )}
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">Start Time</label>

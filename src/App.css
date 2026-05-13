@@ -482,6 +482,19 @@ a { color: inherit; text-decoration: none; }
 .empty-state { padding: 36px 16px; text-align: center; color: var(--text-3); font-size: 14px; line-height: 1.7; }
 .empty-state-icon { font-size: 28px; margin-bottom: 10px; }
 .unscheduled-list.drag-over { background: var(--gold-light); border-radius: var(--r-md); }
+.task-group-label {
+  font-size: 9px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--text-4); padding: 6px 8px 3px; user-select: none;
+}
+.task-group-label--todo {
+  margin-top: 6px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.task-group-empty {
+  font-size: 13px; color: var(--text-4); padding: 4px 8px 6px; font-style: italic;
+}
+.task-item.static-task { cursor: default; }
+.task-item.static-task .task-content { cursor: pointer; }
 
 /* ── Time Blocks Section ───────────────────────────────── */
 .time-blocks-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--surface); }
