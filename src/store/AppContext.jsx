@@ -173,7 +173,11 @@ function reducer(state, action) {
 
     // ── Navigation ──────────────────────────────────────────
     case 'NAVIGATE_PAGE':
-      return { ...state, currentPage: action.page };
+      return {
+        ...state,
+        currentPage: action.page,
+        currentPlannerDate: action.page === 'calendar' ? null : state.currentPlannerDate,
+      };
 
     case 'NAVIGATE_DATE':
       return { ...state, currentPlannerDate: action.dateStr, currentPage: 'calendar', lastVisitDate: today() };
