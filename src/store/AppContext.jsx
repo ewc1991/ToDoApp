@@ -18,6 +18,7 @@ const INITIAL_STATE = {
   tasks: [],
   scheduledBlocks: [],
   recurringTemplates: [],
+  recurringTemplatesLoaded: false,
   generatedDates: [],
   currentPage: 'calendar',
   currentPlannerDate: null,
@@ -55,7 +56,7 @@ function reducer(state, action) {
       return { ...state, scheduledBlocks: action.scheduledBlocks };
 
     case 'SET_RECURRING_TEMPLATES':
-      return { ...state, recurringTemplates: action.recurringTemplates };
+      return { ...state, recurringTemplates: action.recurringTemplates, recurringTemplatesLoaded: true };
 
     case 'SET_SETTINGS':
       return applySettings(state, action.settings);
