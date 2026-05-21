@@ -5,6 +5,7 @@ import Header from './components/Header.jsx'
 import CalendarPage from './components/Calendar/CalendarPage.jsx'
 import ToDoPage from './components/ToDo/ToDoPage.jsx'
 import RecurringPage from './components/Recurring/RecurringPage.jsx'
+import NotesPage from './components/Notes/NotesPage.jsx'
 import LoginPage from './components/Auth/LoginPage.jsx'
 
 const CalIcon = () => (
@@ -27,11 +28,21 @@ const RecurIcon = () => (
     <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
   </svg>
 )
+const NoteIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+)
 
 const MOBILE_TABS = [
   { id: 'calendar', label: 'Calendar', Icon: CalIcon },
   { id: 'todo', label: 'To Do', Icon: TodoIcon },
   { id: 'recurring', label: 'Recurring', Icon: RecurIcon },
+  { id: 'notes', label: 'Notes', Icon: NoteIcon },
 ]
 
 export default function App() {
@@ -60,6 +71,7 @@ export default function App() {
         {state.currentPage === 'calendar' && <CalendarPage />}
         {state.currentPage === 'todo' && <ToDoPage />}
         {state.currentPage === 'recurring' && <RecurringPage />}
+        {state.currentPage === 'notes' && <NotesPage />}
       </main>
       <nav className="mobile-tabbar">
         {MOBILE_TABS.map(({ id, label, Icon }) => (

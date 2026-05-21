@@ -6,6 +6,7 @@ const TABS = [
   { id: 'calendar', label: 'Calendar' },
   { id: 'todo', label: 'To Do' },
   { id: 'recurring', label: 'Recurring' },
+  { id: 'notes', label: 'Notes' },
 ]
 
 function useNow() {

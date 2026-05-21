@@ -18,6 +18,7 @@ const INITIAL_STATE = {
   tasks: [],
   scheduledBlocks: [],
   recurringTemplates: [],
+  notes: [],
   recurringTemplatesLoaded: false,
   generatedDates: [],
   currentPage: 'calendar',
@@ -36,6 +37,11 @@ function applySettings(state, settings) {
   const merged = { ...state, ...settings };
   if (merged.lastVisitDate !== todayStr) {
     return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
+  }
+  // If the user just navigated to a day locally, don't let a stale Firestore snapshot
+  // (e.g. triggered by GENERATE_RECURRING_FOR_DATE) overwrite currentPlannerDate back to null.
+  if (state.currentPlannerDate !== null) {
+    merged.currentPlannerDate = state.currentPlannerDate;
   }
   return merged;
 }
@@ -57,6 +63,21 @@ function reducer(state, action) {
 
     case 'SET_RECURRING_TEMPLATES':
       return { ...state, recurringTemplates: action.recurringTemplates, recurringTemplatesLoaded: true };
+
+    case 'SET_NOTES':
+      return { ...state, notes: action.notes };
+
+    case 'ADD_NOTE':
+      return { ...state, notes: [action.note, ...state.notes] };
+
+    case 'UPDATE_NOTE':
+      return {
+        ...state,
+        notes: state.notes.map(n => n.id === action.id ? { ...n, ...action.updates, updatedAt: ts() } : n),
+      };
+
+    case 'DELETE_NOTE':
+      return { ...state, notes: state.notes.filter(n => n.id !== action.id) };
 
     case 'SET_SETTINGS':
       return applySettings(state, action.settings);
@@ -380,6 +401,28 @@ export function AppProvider({ children }) {
         break;
       }
 
+      case 'ADD_NOTE': {
+        const note = {
+          id: genId(), title: action.title, body: action.body || '',
+          createdAt: ts(), updatedAt: ts(),
+        };
+        enriched = { ...action, note };
+        if (uid) setDoc(doc(db, 'users', uid, 'notes', note.id), note).catch(console.error);
+        break;
+      }
+
+      case 'UPDATE_NOTE': {
+        const updates = { ...action.updates, updatedAt: ts() };
+        enriched = { ...action, updates };
+        if (uid) updateDoc(doc(db, 'users', uid, 'notes', action.id), updates).catch(console.error);
+        break;
+      }
+
+      case 'DELETE_NOTE': {
+        if (uid) deleteDoc(doc(db, 'users', uid, 'notes', action.id)).catch(console.error);
+        break;
+      }
+
       case 'GENERATE_RECURRING_FOR_DATE': {
         if (s.generatedDates.includes(action.dateStr)) return; // skip entirely
         const newTasks = s.recurringTemplates
@@ -497,6 +540,10 @@ export function AppProvider({ children }) {
           cachedTemplates = snap.docs.map(d => d.data());
           baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: cachedTemplates });
           if (!templatesFirstFired) { templatesFirstFired = true; tryRollover(); }
+        }),
+        onSnapshot(collection(db, 'users', uid, 'notes'), snap => {
+          if (!cancelled)
+            baseDispatch({ type: 'SET_NOTES', notes: snap.docs.map(d => d.data()) });
         }),
         onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
