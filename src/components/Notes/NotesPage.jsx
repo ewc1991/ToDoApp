@@ -20,13 +20,11 @@ function formatNoteDate(isoStr) {
 
 export default function NotesPage() {
   const { state, dispatch } = useApp()
-  const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [recording, setRecording] = useState(false)
   const [editId, setEditId] = useState(null)
   const recognitionRef = useRef(null)
   const bodyRef = useRef(null)
-  const titleRef = useRef(null)
 
   const notes = [...state.notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
@@ -35,7 +33,7 @@ export default function NotesPage() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault()
-        titleRef.current?.focus()
+        bodyRef.current?.focus()
       }
     }
     window.addEventListener('keydown', handler)
@@ -45,11 +43,10 @@ export default function NotesPage() {
   useEffect(() => () => recognitionRef.current?.stop(), [])
 
   const handleAdd = () => {
-    if (!title.trim() && !body.trim()) return
-    dispatch({ type: 'ADD_NOTE', title: title.trim(), body: body.trim() })
-    setTitle('')
+    if (!body.trim()) return
+    dispatch({ type: 'ADD_NOTE', body: body.trim() })
     setBody('')
-    titleRef.current?.focus()
+    bodyRef.current?.focus()
   }
 
   const handleKey = (e) => {
@@ -99,13 +96,6 @@ export default function NotesPage() {
       <div className="notes-scroll">
         {/* Composer */}
         <div className="notes-composer" onKeyDown={handleKey}>
-          <input
-            ref={titleRef}
-            className="notes-composer-title"
-            placeholder="Title…"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-          />
           <div className="notes-composer-body-row">
             <textarea
               ref={bodyRef}
@@ -129,7 +119,7 @@ export default function NotesPage() {
             <button
               className="btn btn-primary"
               onClick={handleAdd}
-              disabled={!title.trim() && !body.trim()}
+              disabled={!body.trim()}
             >
               Save Note
             </button>
@@ -146,7 +136,6 @@ export default function NotesPage() {
           <div className="notes-grid">
             {notes.map(note => (
               <div key={note.id} className="note-card" onClick={() => setEditId(note.id)}>
-                {note.title && <div className="note-card-title">{note.title}</div>}
                 {note.body && <div className="note-card-body">{note.body}</div>}
                 <div className="note-card-date">{formatNoteDate(note.createdAt)}</div>
               </div>

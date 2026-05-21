@@ -403,7 +403,7 @@ export function AppProvider({ children }) {
 
       case 'ADD_NOTE': {
         const note = {
-          id: genId(), title: action.title, body: action.body || '',
+          id: genId(), body: action.body || '',
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, note };

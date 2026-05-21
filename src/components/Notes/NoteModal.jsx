@@ -17,19 +17,18 @@ export default function NoteModal({ noteId, onClose }) {
   const { state, dispatch } = useApp()
   const note = state.notes.find(n => n.id === noteId)
 
-  const [title, setTitle] = useState(note?.title || '')
   const [body, setBody] = useState(note?.body || '')
   const [recording, setRecording] = useState(false)
   const recognitionRef = useRef(null)
-  const titleRef = useRef(null)
+  const bodyRef = useRef(null)
 
-  useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
+  useEffect(() => { setTimeout(() => bodyRef.current?.focus(), 50) }, [])
   useEffect(() => () => recognitionRef.current?.stop(), [])
 
   if (!note) return null
 
   const handleSave = () => {
-    dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { title: title.trim(), body } })
+    dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
     onClose()
   }
 
@@ -39,7 +38,7 @@ export default function NoteModal({ noteId, onClose }) {
   }
 
   const handleConvert = () => {
-    const taskTitle = title.trim() || body.slice(0, 100).trim()
+    const taskTitle = body.slice(0, 100).trim()
     if (!taskTitle) return
     dispatch({ type: 'ADD_TASK', title: taskTitle, notes: body, assignedDate: null })
     dispatch({ type: 'DELETE_NOTE', id: note.id })
@@ -93,19 +92,8 @@ export default function NoteModal({ noteId, onClose }) {
       }
     >
       <div className="form-group">
-        <label className="form-label">Title</label>
-        <input
-          ref={titleRef}
-          className="form-input"
-          placeholder="Note title"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSave() } }}
-        />
-      </div>
-      <div className="form-group">
         <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Body</span>
+          <span>Note</span>
           <button
             className={`note-modal-mic${recording ? ' recording' : ''}`}
             onClick={toggleRecording}
@@ -116,11 +104,12 @@ export default function NoteModal({ noteId, onClose }) {
           </button>
         </label>
         <textarea
+          ref={bodyRef}
           className="form-input"
           value={body}
           onChange={e => setBody(e.target.value)}
-          rows={7}
-          placeholder="Note body…"
+          rows={9}
+          placeholder="Note…"
         />
       </div>
     </Modal>
