@@ -116,13 +116,20 @@ export default function NotesPage() {
           </div>
           <div className="notes-composer-footer">
             <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
-            <button
-              className="btn btn-primary"
-              onClick={handleAdd}
-              disabled={!body.trim()}
-            >
-              Save Note
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {body && (
+                <button className="btn btn-secondary" onClick={() => { setBody(''); bodyRef.current?.focus() }}>
+                  Clear
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={handleAdd}
+                disabled={!body.trim()}
+              >
+                Save Note
+              </button>
+            </div>
           </div>
         </div>
 

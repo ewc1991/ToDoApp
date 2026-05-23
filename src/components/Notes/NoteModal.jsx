@@ -40,7 +40,7 @@ export default function NoteModal({ noteId, onClose }) {
   const handleConvert = () => {
     const taskTitle = body.slice(0, 100).trim()
     if (!taskTitle) return
-    dispatch({ type: 'ADD_TASK', title: taskTitle, notes: body, assignedDate: null })
+    dispatch({ type: 'ADD_TASK', title: taskTitle, notes: '', assignedDate: null })
     dispatch({ type: 'DELETE_NOTE', id: note.id })
     onClose()
   }
