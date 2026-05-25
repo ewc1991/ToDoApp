@@ -21,10 +21,15 @@ export const shouldRecurOnDate = (template, dateStr) => {
     case 'weekly':   return dow === (template.dayOfWeek ?? 0);
     case 'biweekly': {
       if (dow !== (template.dayOfWeek ?? 0)) return false;
-      if (!template.startDate) return true;
-      const [sy, sm, sd] = template.startDate.split('-').map(Number);
-      const start = new Date(sy, sm - 1, sd);
-      const diffDays  = Math.round((date - start) / 86400000);
+      // Use startDate, or fall back to createdAt so biweekly doesn't collapse to weekly
+      const anchorStr = template.startDate || template.createdAt?.slice(0, 10);
+      if (!anchorStr) return true;
+      const [sy, sm, sd] = anchorStr.split('-').map(Number);
+      const anchorDate = new Date(sy, sm - 1, sd);
+      // Normalize to first matching weekday on or after anchor so mismatched startDates align
+      const skip = (7 + (template.dayOfWeek ?? 0) - anchorDate.getDay()) % 7;
+      const anchor = new Date(anchorDate); anchor.setDate(anchorDate.getDate() + skip);
+      const diffDays  = Math.round((date - anchor) / 86400000);
       const diffWeeks = Math.floor(diffDays / 7);
       return diffWeeks % 2 === 0 && diffDays >= 0;
     }
@@ -41,8 +46,10 @@ export const shouldRecurOnDate = (template, dateStr) => {
         if (dow !== (template.dayOfWeek ?? 0)) return false;
         if (!template.startDate || interval <= 1) return true;
         const [sy, sm, sd] = template.startDate.split('-').map(Number);
-        const start     = new Date(sy, sm - 1, sd);
-        const diffDays  = Math.round((date - start) / 86400000);
+        const anchorDate = new Date(sy, sm - 1, sd);
+        const skip = (7 + (template.dayOfWeek ?? 0) - anchorDate.getDay()) % 7;
+        const anchor = new Date(anchorDate); anchor.setDate(anchorDate.getDate() + skip);
+        const diffDays  = Math.round((date - anchor) / 86400000);
         if (diffDays < 0) return false;
         return Math.floor(diffDays / 7) % interval === 0;
       } else { // months

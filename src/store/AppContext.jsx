@@ -182,7 +182,11 @@ function reducer(state, action) {
       };
 
     case 'DELETE_RECURRING_TEMPLATE':
-      return { ...state, recurringTemplates: state.recurringTemplates.filter(t => t.id !== action.id) };
+      return {
+        ...state,
+        recurringTemplates: state.recurringTemplates.filter(t => t.id !== action.id),
+        tasks: state.tasks.filter(t => t.recurringTemplateId !== action.id),
+      };
 
     case 'GENERATE_RECURRING_FOR_DATE': {
       if (state.generatedDates.includes(action.dateStr)) return state;
@@ -397,7 +401,12 @@ export function AppProvider({ children }) {
       }
 
       case 'DELETE_RECURRING_TEMPLATE': {
-        if (uid) deleteDoc(doc(db, 'users', uid, 'recurringTemplates', action.id)).catch(console.error);
+        if (uid) {
+          deleteDoc(doc(db, 'users', uid, 'recurringTemplates', action.id)).catch(console.error);
+          s.tasks
+            .filter(t => t.recurringTemplateId === action.id)
+            .forEach(t => deleteDoc(doc(db, 'users', uid, 'tasks', t.id)).catch(console.error));
+        }
         break;
       }
 
