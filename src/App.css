@@ -200,7 +200,6 @@ a { color: inherit; text-decoration: none; }
 /* ── Auth ──────────────────────────────────────────────── */
 .app-loading {
   height: 100dvh; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #FFFBEB 0%, #FFF9F5 50%, #F0FDFC 100%);
   font-size: 16px; font-weight: 800; letter-spacing: -.4px;
   background: var(--grad-brand-wide); background-size: 300%;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
@@ -867,15 +866,7 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   border-color: rgba(123,66,246,.38);
   box-shadow: 0 0 0 4px rgba(123,66,246,.1), 0 6px 28px rgba(123,66,246,.14), 0 1px 0 rgba(255,255,255,.9) inset;
 }
-.notes-composer-title {
-  width: 100%; border: none; background: transparent; outline: none;
-  font-size: 17px; font-weight: 700; color: var(--text);
-  placeholder-color: var(--text-4);
-  padding: 2px 0 10px; line-height: 1.3;
-  border-bottom: 1px solid rgba(123,66,246,.12);
-  margin-bottom: 10px;
-}
-.notes-composer-title::placeholder { color: var(--text-4); font-weight: 500; }
+
 .notes-composer-body-row { display: flex; gap: 10px; align-items: flex-start; }
 .notes-composer-body {
   flex: 1; border: none; background: transparent; outline: none; resize: none;

@@ -30,6 +30,7 @@ function formatClock(date) {
 }
 
 async function hardRefresh() {
+  if (!window.confirm('Clear app cache and reload?')) return
   if ('serviceWorker' in navigator) {
     const regs = await navigator.serviceWorker.getRegistrations()
     await Promise.all(regs.map(r => r.unregister()))

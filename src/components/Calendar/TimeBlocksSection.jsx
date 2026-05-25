@@ -10,7 +10,6 @@ const DEFAULT_START =  7 * 60  // 7 AM
 const DEFAULT_END   = 19 * 60  // 7 PM
 const floorTo30     = (mins) => Math.floor(mins / 30) * 30
 const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
-const isMobile      = window.matchMedia('(pointer: coarse)').matches
 
 function CheckIcon() {
   return (
@@ -22,6 +21,7 @@ function CheckIcon() {
 
 function ScheduledBlock({ block, startOffset, onEdit }) {
   const { dispatch } = useApp()
+  const isMobile = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
     id: `block-${block.id}`,
     data: { type: 'scheduled-block', blockId: block.id },

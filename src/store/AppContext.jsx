@@ -424,7 +424,7 @@ export function AppProvider({ children }) {
       }
 
       case 'GENERATE_RECURRING_FOR_DATE': {
-        if (s.generatedDates.includes(action.dateStr)) return; // skip entirely
+        if (s.generatedDates.includes(action.dateStr)) break; // reducer also guards; skip Firestore write
         const newTasks = s.recurringTemplates
           .filter(tmpl => shouldRecurOnDate(tmpl, action.dateStr))
           .map((tmpl, i) => ({

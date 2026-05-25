@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import NoteModal from './NoteModal.jsx'
 
@@ -26,7 +26,10 @@ export default function NotesPage() {
   const recognitionRef = useRef(null)
   const bodyRef = useRef(null)
 
-  const notes = [...state.notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const notes = useMemo(() =>
+    [...state.notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    [state.notes]
+  )
 
   useEffect(() => {
     const handler = (e) => {
@@ -80,7 +83,10 @@ export default function NotesPage() {
       if (transcript) setBody(prev => prev ? prev + ' ' + transcript : transcript)
     }
     recognition.onend = () => setRecording(false)
-    recognition.onerror = () => setRecording(false)
+    recognition.onerror = (e) => {
+      setRecording(false)
+      if (e.error === 'not-allowed') alert('Microphone access was denied. Please allow it in your browser settings.')
+    }
     recognition.start()
     recognitionRef.current = recognition
     setRecording(true)

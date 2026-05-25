@@ -77,6 +77,7 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
   const [showAdd, setShowAdd] = useState(false)
   const [inlineTitle, setInlineTitle] = useState('')
   const inlineRef = useRef(null)
+  const cancelledRef = useRef(false)
 
   // Keyboard shortcut: 'n' opens inline add
   useEffect(() => {
@@ -97,6 +98,7 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
   }, [showAdd])
 
   const handleInlineAdd = () => {
+    if (cancelledRef.current) { cancelledRef.current = false; return }
     if (inlineTitle.trim()) {
       dispatch({ type: 'ADD_TASK', title: inlineTitle.trim(), notes: '', assignedDate: date })
       setInlineTitle('')
@@ -106,7 +108,7 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
 
   const handleInlineKey = (e) => {
     if (e.key === 'Enter') handleInlineAdd()
-    if (e.key === 'Escape') { setShowAdd(false); setInlineTitle('') }
+    if (e.key === 'Escape') { cancelledRef.current = true; setShowAdd(false); setInlineTitle('') }
   }
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: 'unscheduled-droppable' })

@@ -12,7 +12,7 @@ export default function CalendarPage() {
     if (state.currentPlannerDate && state.recurringTemplatesLoaded && !state.generatedDates.includes(state.currentPlannerDate)) {
       dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: state.currentPlannerDate })
     }
-  }, [state.currentPlannerDate, state.recurringTemplatesLoaded])
+  }, [state.currentPlannerDate, state.recurringTemplatesLoaded, state.generatedDates, dispatch])
 
   return (
     <div className="calendar-page page">

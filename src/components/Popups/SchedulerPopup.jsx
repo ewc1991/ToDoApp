@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
 import { useApp } from '../../store/AppContext.jsx'
-import { getNearestHalfHour, minutesToTime, timeToMinutes, formatTime } from '../../utils/timeUtils.js'
+import { getNearestHalfHour, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
 
 export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const { state, dispatch } = useApp()

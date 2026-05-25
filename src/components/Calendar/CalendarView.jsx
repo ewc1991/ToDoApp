@@ -95,7 +95,7 @@ export default function CalendarView() {
           const isCurrentDay = isToday(cell.dateStr)
           return (
             <div
-              key={i}
+              key={cell.dateStr}
               className={[
                 'calendar-cell',
                 !cell.currentMonth ? 'other-month' : '',

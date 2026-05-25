@@ -69,7 +69,10 @@ export default function NoteModal({ noteId, onClose }) {
       if (transcript) setBody(prev => prev ? prev + ' ' + transcript : transcript)
     }
     recognition.onend = () => setRecording(false)
-    recognition.onerror = () => setRecording(false)
+    recognition.onerror = (e) => {
+      setRecording(false)
+      if (e.error === 'not-allowed') alert('Microphone access was denied. Please allow it in your browser settings.')
+    }
     recognition.start()
     recognitionRef.current = recognition
     setRecording(true)

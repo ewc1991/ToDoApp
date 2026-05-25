@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import RecurringPopup from '../Popups/RecurringPopup.jsx'
 
@@ -56,8 +56,11 @@ export default function RecurringPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const templates = [...state.recurringTemplates].sort((a, b) =>
-    a.recurrenceType.localeCompare(b.recurrenceType) || a.title.localeCompare(b.title)
+  const templates = useMemo(() =>
+    [...state.recurringTemplates].sort((a, b) =>
+      a.recurrenceType.localeCompare(b.recurrenceType) || a.title.localeCompare(b.title)
+    ),
+    [state.recurringTemplates]
   )
 
   return (
