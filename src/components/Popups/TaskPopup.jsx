@@ -8,6 +8,7 @@ export default function TaskPopup({ taskId, date, onClose }) {
 
   const [title, setTitle] = useState(existing?.title || '')
   const [notes, setNotes] = useState(existing?.notes || '')
+  const [assignedDate, setAssignedDate] = useState(existing?.assignedDate || date || '')
   const titleRef = useRef(null)
 
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
@@ -15,9 +16,9 @@ export default function TaskPopup({ taskId, date, onClose }) {
   const handleSave = () => {
     if (!title.trim()) return
     if (existing) {
-      dispatch({ type: 'UPDATE_TASK', id: existing.id, updates: { title: title.trim(), notes } })
+      dispatch({ type: 'UPDATE_TASK', id: existing.id, updates: { title: title.trim(), notes, assignedDate: assignedDate || null } })
     } else {
-      dispatch({ type: 'ADD_TASK', title: title.trim(), notes, assignedDate: date })
+      dispatch({ type: 'ADD_TASK', title: title.trim(), notes, assignedDate: assignedDate || null })
     }
     onClose()
   }
@@ -65,6 +66,15 @@ export default function TaskPopup({ taskId, date, onClose }) {
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={3}
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Date <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span></label>
+        <input
+          type="date"
+          className="form-input"
+          value={assignedDate}
+          onChange={e => setAssignedDate(e.target.value)}
         />
       </div>
     </Modal>
