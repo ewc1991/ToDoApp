@@ -18,6 +18,7 @@ export default function NoteModal({ noteId, onClose }) {
   const note = state.notes.find(n => n.id === noteId)
 
   const [body, setBody] = useState(note?.body || '')
+  const [date, setDate] = useState('')
   const [recording, setRecording] = useState(false)
   const recognitionRef = useRef(null)
   const bodyRef = useRef(null)
@@ -28,7 +29,14 @@ export default function NoteModal({ noteId, onClose }) {
   if (!note) return null
 
   const handleSave = () => {
-    dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
+    if (date) {
+      const taskTitle = body.slice(0, 100).trim()
+      if (!taskTitle) return
+      dispatch({ type: 'ADD_TASK', title: taskTitle, notes: '', assignedDate: date })
+      dispatch({ type: 'DELETE_NOTE', id: note.id })
+    } else {
+      dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
+    }
     onClose()
   }
 
@@ -90,7 +98,12 @@ export default function NoteModal({ noteId, onClose }) {
           </button>
           <div style={{ flex: 1 }} />
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>Save</button>
+          <button
+            className={`btn ${date ? 'btn-convert' : 'btn-primary'}`}
+            onClick={handleSave}
+          >
+            {date ? 'Add to To Do' : 'Save'}
+          </button>
         </>
       }
     >
@@ -111,9 +124,25 @@ export default function NoteModal({ noteId, onClose }) {
           className="form-input"
           value={body}
           onChange={e => setBody(e.target.value)}
-          rows={9}
+          rows={7}
           placeholder="Note…"
         />
+      </div>
+      <div className="form-group">
+        <label className="form-label">
+          Schedule as To Do <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span>
+        </label>
+        <input
+          type="date"
+          className="form-input"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+        />
+        {date && (
+          <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>
+            Saving will move this note to your To Do list on that date.
+          </span>
+        )}
       </div>
     </Modal>
   )

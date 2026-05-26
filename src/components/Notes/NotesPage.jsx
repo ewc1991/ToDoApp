@@ -21,6 +21,7 @@ function formatNoteDate(isoStr) {
 export default function NotesPage() {
   const { state, dispatch } = useApp()
   const [body, setBody] = useState('')
+  const [date, setDate] = useState('')
   const [recording, setRecording] = useState(false)
   const [editId, setEditId] = useState(null)
   const recognitionRef = useRef(null)
@@ -47,8 +48,13 @@ export default function NotesPage() {
 
   const handleAdd = () => {
     if (!body.trim()) return
-    dispatch({ type: 'ADD_NOTE', body: body.trim() })
+    if (date) {
+      dispatch({ type: 'ADD_TASK', title: body.trim().slice(0, 100), notes: '', assignedDate: date })
+    } else {
+      dispatch({ type: 'ADD_NOTE', body: body.trim() })
+    }
     setBody('')
+    setDate('')
     bodyRef.current?.focus()
   }
 
@@ -122,18 +128,25 @@ export default function NotesPage() {
           </div>
           <div className="notes-composer-footer">
             <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="date"
+                className="notes-date-input"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                title="Optional: schedule as To Do"
+              />
               {body && (
-                <button className="btn btn-secondary" onClick={() => { setBody(''); bodyRef.current?.focus() }}>
+                <button className="btn btn-secondary" onClick={() => { setBody(''); setDate(''); bodyRef.current?.focus() }}>
                   Clear
                 </button>
               )}
               <button
-                className="btn btn-primary"
+                className={`btn ${date ? 'btn-convert' : 'btn-primary'}`}
                 onClick={handleAdd}
                 disabled={!body.trim()}
               >
-                Save Note
+                {date ? 'Add to To Do' : 'Save Note'}
               </button>
             </div>
           </div>
