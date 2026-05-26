@@ -252,6 +252,8 @@ export function AppProvider({ children }) {
   const uid = user?.uid ?? null;
   const stateRef = useRef(state);
   const settingsReadyRef = useRef(false);
+  const cachedTasksRef = useRef([]);
+  const cachedTemplatesRef = useRef([]);
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
@@ -537,6 +539,7 @@ export function AppProvider({ children }) {
         onSnapshot(collection(db, 'users', uid, 'tasks'), snap => {
           if (cancelled) return;
           cachedTasks = snap.docs.map(d => d.data());
+          cachedTasksRef.current = cachedTasks;
           baseDispatch({ type: 'SET_TASKS', tasks: cachedTasks });
           if (!tasksFirstFired) { tasksFirstFired = true; tryRollover(); }
         }),
@@ -547,6 +550,7 @@ export function AppProvider({ children }) {
         onSnapshot(collection(db, 'users', uid, 'recurringTemplates'), snap => {
           if (cancelled) return;
           cachedTemplates = snap.docs.map(d => d.data());
+          cachedTemplatesRef.current = cachedTemplates;
           baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: cachedTemplates });
           if (!templatesFirstFired) { templatesFirstFired = true; tryRollover(); }
         }),
@@ -581,6 +585,50 @@ export function AppProvider({ children }) {
       unsubs.forEach(u => u());
     };
   }, [uid]);
+
+  // Midnight timer: if the app stays open overnight, roll over tasks and generate recurring at midnight
+  useEffect(() => {
+    if (!uid) return;
+    const ROLLOVER_TYPES_M = new Set(['weekly', 'biweekly', 'monthly']);
+
+    const runAtMidnight = () => {
+      const todayStr = today();
+      const tasks = cachedTasksRef.current;
+      const templates = cachedTemplatesRef.current;
+      const templateMap = Object.fromEntries(templates.map(t => [t.id, t]));
+
+      const tasksToRoll = tasks.filter(t => {
+        if (!t.assignedDate || t.assignedDate >= todayStr || t.completed) return false;
+        if (!t.recurringTemplateId) return true;
+        const tmpl = templateMap[t.recurringTemplateId];
+        return tmpl && ROLLOVER_TYPES_M.has(tmpl.recurrenceType);
+      });
+      if (tasksToRoll.length > 0) {
+        const nowTs = ts();
+        const batch = writeBatch(db);
+        tasksToRoll.forEach(t => {
+          batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
+        });
+        batch.commit().catch(console.error);
+        baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
+      }
+
+      dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: todayStr });
+
+      setDoc(doc(db, 'users', uid, 'settings', 'data'),
+        { lastVisitDate: todayStr },
+        { merge: true }).catch(console.error);
+    };
+
+    const schedule = () => {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+      return setTimeout(() => { runAtMidnight(); timer = schedule(); }, midnight - now);
+    };
+
+    let timer = schedule();
+    return () => clearTimeout(timer);
+  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced save of navigation/UI settings (not covered by per-action writes)
   useEffect(() => {
