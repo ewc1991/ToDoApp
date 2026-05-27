@@ -509,13 +509,11 @@ export function AppProvider({ children }) {
       let settingsFirstFired = false;
       let tasksFirstFired = false;
       let templatesFirstFired = false;
-      let shouldRollover = false;
       let cachedTasks = [];
       let cachedTemplates = [];
 
       const tryRollover = () => {
-        if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired || !shouldRollover) return;
-        shouldRollover = false;
+        if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired) return;
         const todayStr = today();
         const templateMap = Object.fromEntries(cachedTemplates.map(t => [t.id, t]));
         const tasksToRoll = cachedTasks.filter(t => {
@@ -561,11 +559,7 @@ export function AppProvider({ children }) {
         onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
           if (snap.exists()) {
-            const settings = snap.data();
-            if (!settingsFirstFired && settings.lastVisitDate && settings.lastVisitDate !== today()) {
-              shouldRollover = true;
-            }
-            baseDispatch({ type: 'SET_SETTINGS', settings });
+            baseDispatch({ type: 'SET_SETTINGS', settings: snap.data() });
           }
           if (!settingsFirstFired) {
             settingsFirstFired = true;
@@ -614,10 +608,6 @@ export function AppProvider({ children }) {
       }
 
       dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: todayStr });
-
-      setDoc(doc(db, 'users', uid, 'settings', 'data'),
-        { lastVisitDate: todayStr },
-        { merge: true }).catch(console.error);
     };
 
     const schedule = () => {
