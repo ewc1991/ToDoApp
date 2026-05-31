@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
-import TaskPopup from '../Popups/TaskPopup.jsx'
+import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
   return (
@@ -14,7 +14,7 @@ function CheckIcon() {
 }
 
 function SortableTask({ task, onEdit }) {
-  const { state, dispatch } = useApp()
+  const { dispatch } = useApp()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
   const style = {
@@ -23,17 +23,15 @@ function SortableTask({ task, onEdit }) {
     opacity: isDragging ? 0.4 : 1,
   }
 
-  const completed = task.completed
-
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item${completed ? ' completed' : ''}`}
+      className={`task-item${task.completed ? ' completed' : ''}`}
     >
       <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">⠿</span>
       <div
-        className={`task-check${completed ? ' checked' : ''}`}
+        className={`task-check${task.completed ? ' checked' : ''}`}
         onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
       >
         <CheckIcon />
@@ -53,11 +51,10 @@ function SortableTask({ task, onEdit }) {
 
 function StaticTask({ task, onEdit }) {
   const { dispatch } = useApp()
-  const completed = task.completed
   return (
-    <div className={`task-item static-task${completed ? ' completed' : ''}`}>
+    <div className={`task-item static-task${task.completed ? ' completed' : ''}`}>
       <div
-        className={`task-check${completed ? ' checked' : ''}`}
+        className={`task-check${task.completed ? ' checked' : ''}`}
         onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
       >
         <CheckIcon />
@@ -71,13 +68,16 @@ function StaticTask({ task, onEdit }) {
 }
 
 export default function UnscheduledSection({ tasks, backlogTasks = [], date, activeId, width }) {
-  const pendingCount = tasks.filter(t => !t.completed).length + backlogTasks.length
   const { dispatch } = useApp()
   const [editId, setEditId] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
   const [inlineTitle, setInlineTitle] = useState('')
   const inlineRef = useRef(null)
   const cancelledRef = useRef(false)
+
+  const incompleteTasks = useMemo(() => tasks.filter(t => !t.completed), [tasks])
+  const completedTasks  = useMemo(() => tasks.filter(t =>  t.completed), [tasks])
+  const pendingCount = incompleteTasks.length + backlogTasks.length
 
   // Keyboard shortcut: 'n' opens inline add
   useEffect(() => {
@@ -113,7 +113,6 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: 'unscheduled-droppable' })
 
-  // For the droppable ref we use the list container
   return (
     <section className="unscheduled-section" style={width != null ? { width, minWidth: width } : undefined}>
       <div className="section-header">
@@ -137,11 +136,18 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
         {(tasks.length > 0 || backlogTasks.length > 0) && (
           <div className="task-group-label">Due Today</div>
         )}
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map(task => (
+
+        {/* Sortable incomplete tasks */}
+        <SortableContext items={incompleteTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          {incompleteTasks.map(task => (
             <SortableTask key={task.id} task={task} onEdit={setEditId} />
           ))}
         </SortableContext>
+
+        {/* Completed tasks sink to the bottom of the date group */}
+        {completedTasks.map(task => (
+          <StaticTask key={task.id} task={task} onEdit={setEditId} />
+        ))}
 
         {tasks.length === 0 && backlogTasks.length > 0 && !showAdd && (
           <div className="task-group-empty">Nothing assigned for today.</div>
@@ -183,7 +189,7 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
       </div>
 
       {editId && (
-        <TaskPopup taskId={editId} date={date} onClose={() => setEditId(null)} />
+        <ToDoPopup taskId={editId} date={date} onClose={() => setEditId(null)} />
       )}
     </section>
   )

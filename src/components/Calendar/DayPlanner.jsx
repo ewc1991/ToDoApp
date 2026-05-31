@@ -120,11 +120,12 @@ export default function DayPlanner({ date }) {
         setSchedulerPrefill({ title: task.title, notes: task.notes, todoTaskId: task.id })
       }
     } else if (over.id !== active.id) {
-      // Reorder within unscheduled list
-      const oldIdx = unscheduledTasks.findIndex(t => t.id === active.id)
-      const newIdx = unscheduledTasks.findIndex(t => t.id === over.id)
+      // Reorder within unscheduled list — only among incomplete tasks
+      const sortable = unscheduledTasks.filter(t => !t.completed)
+      const oldIdx = sortable.findIndex(t => t.id === active.id)
+      const newIdx = sortable.findIndex(t => t.id === over.id)
       if (oldIdx !== -1 && newIdx !== -1) {
-        const reordered = arrayMove(unscheduledTasks, oldIdx, newIdx)
+        const reordered = arrayMove(sortable, oldIdx, newIdx)
         dispatch({ type: 'REORDER_TASKS', orderedIds: reordered.map(t => t.id) })
       }
     }

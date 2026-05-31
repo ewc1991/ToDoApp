@@ -24,7 +24,14 @@ export default function NoteModal({ noteId, onClose }) {
   const bodyRef = useRef(null)
 
   useEffect(() => { setTimeout(() => bodyRef.current?.focus(), 50) }, [])
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  useEffect(() => () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null
+      recognitionRef.current.onend = null
+      recognitionRef.current.onerror = null
+      recognitionRef.current.stop()
+    }
+  }, [])
 
   if (!note) return null
 

@@ -46,7 +46,7 @@ const MOBILE_TABS = [
 ]
 
 export default function App() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, networkError } = useApp()
   const { user } = useAuth()
 
   useEffect(() => {
@@ -73,6 +73,7 @@ export default function App() {
         {state.currentPage === 'recurring' && <RecurringPage />}
         {state.currentPage === 'notes' && <NotesPage />}
       </main>
+      {networkError && <div className="network-error-toast">{networkError}</div>}
       <nav className="mobile-tabbar">
         {MOBILE_TABS.map(({ id, label, Icon }) => (
           <button

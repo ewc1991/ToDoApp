@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 
-export default function ToDoPopup({ taskId, onClose }) {
+export default function ToDoPopup({ taskId, date, onClose }) {
   const { state, dispatch } = useApp()
   const existing = taskId ? state.tasks.find(t => t.id === taskId) : null
 
   const [title, setTitle] = useState(existing?.title || '')
   const [notes, setNotes] = useState(existing?.notes || '')
-  const [assignedDate, setAssignedDate] = useState(existing?.assignedDate || '')
+  const [assignedDate, setAssignedDate] = useState(existing?.assignedDate || date || '')
   const titleRef = useRef(null)
 
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
@@ -56,7 +56,7 @@ export default function ToDoPopup({ taskId, onClose }) {
         <textarea className="form-input" placeholder="Optional notes…" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
       </div>
       <div className="form-group">
-        <label className="form-label">Assigned Date <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span></label>
+        <label className="form-label">Date <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span></label>
         <input type="date" className="form-input" value={assignedDate} onChange={e => setAssignedDate(e.target.value)} />
       </div>
     </Modal>

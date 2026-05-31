@@ -996,3 +996,29 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   .task-item:hover { transform: none; }
   .sched-block:hover { transform: translateX(2px); }
 }
+
+/* ── Network error toast ────────────────────────────────── */
+.network-error-toast {
+  position: fixed;
+  bottom: calc(var(--tabbar-height, 64px) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--rose-dark);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 2000;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  white-space: nowrap;
+  animation: toast-in .2s ease;
+  pointer-events: none;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
+}
+@media (min-width: 768px) {
+  .network-error-toast { bottom: 24px; }
+}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef, useState } from 'react';
 import {
   doc, collection,
   setDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, getDoc,
@@ -134,7 +134,9 @@ function reducer(state, action) {
         .filter(i => i !== -1)
         .sort((a, b) => a - b);
       const newTasks = [...state.tasks];
-      orderedIds.forEach((id, i) => { newTasks[positions[i]] = { ...taskMap[id], sortIndex: i }; });
+      // Use positions[i] as sortIndex so tasks outside orderedIds keep their existing
+      // sortIndex values without collisions.
+      orderedIds.forEach((id, i) => { newTasks[positions[i]] = { ...taskMap[id], sortIndex: positions[i] }; });
       return { ...state, tasks: newTasks };
     }
 
@@ -254,6 +256,14 @@ export function AppProvider({ children }) {
   const settingsReadyRef = useRef(false);
   const cachedTasksRef = useRef([]);
   const cachedTemplatesRef = useRef([]);
+  const [networkError, setNetworkError] = useState(null);
+  const networkErrorTimerRef = useRef(null);
+  const handleErrRef = useRef((e) => {
+    console.error(e);
+    setNetworkError('Failed to save. Check your connection.');
+    clearTimeout(networkErrorTimerRef.current);
+    networkErrorTimerRef.current = setTimeout(() => setNetworkError(null), 5000);
+  });
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
@@ -273,23 +283,23 @@ export function AppProvider({ children }) {
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, task };
-        if (uid) setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(console.error);
+        if (uid) setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(handleErrRef.current);
         break;
       }
 
       case 'UPDATE_TASK': {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
-        if (uid) updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(console.error);
+        if (uid) updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(handleErrRef.current);
         break;
       }
 
       case 'DELETE_TASK': {
         if (uid) {
-          deleteDoc(doc(db, 'users', uid, 'tasks', action.id)).catch(console.error);
+          deleteDoc(doc(db, 'users', uid, 'tasks', action.id)).catch(handleErrRef.current);
           s.scheduledBlocks
             .filter(b => b.todoTaskId === action.id)
-            .forEach(b => deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id)).catch(console.error));
+            .forEach(b => deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id)).catch(handleErrRef.current));
         }
         break;
       }
@@ -299,13 +309,13 @@ export function AppProvider({ children }) {
         if (!task || !uid) break;
         const completed = !task.completed;
         const updates = { completed, updatedAt: ts() };
-        updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(console.error);
+        updateDoc(doc(db, 'users', uid, 'tasks', action.id), updates).catch(handleErrRef.current);
         s.scheduledBlocks
           .filter(b => b.todoTaskId === action.id)
-          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
+          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(handleErrRef.current));
         setDoc(doc(db, 'users', uid, 'settings', 'data'),
           { lastCompletedTask: completed ? { ...task, completed } : null },
-          { merge: true }).catch(console.error);
+          { merge: true }).catch(handleErrRef.current);
         break;
       }
 
@@ -313,21 +323,25 @@ export function AppProvider({ children }) {
         const { lastCompletedTask } = s;
         if (!lastCompletedTask || !uid) break;
         const updates = { completed: false, updatedAt: ts() };
-        updateDoc(doc(db, 'users', uid, 'tasks', lastCompletedTask.id), updates).catch(console.error);
+        updateDoc(doc(db, 'users', uid, 'tasks', lastCompletedTask.id), updates).catch(handleErrRef.current);
         s.scheduledBlocks
           .filter(b => b.todoTaskId === lastCompletedTask.id)
-          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(console.error));
-        setDoc(doc(db, 'users', uid, 'settings', 'data'), { lastCompletedTask: null }, { merge: true }).catch(console.error);
+          .forEach(b => updateDoc(doc(db, 'users', uid, 'scheduledBlocks', b.id), updates).catch(handleErrRef.current));
+        setDoc(doc(db, 'users', uid, 'settings', 'data'), { lastCompletedTask: null }, { merge: true }).catch(handleErrRef.current);
         break;
       }
 
       case 'REORDER_TASKS': {
         if (uid && action.orderedIds) {
+          const positions = action.orderedIds
+            .map(id => s.tasks.findIndex(t => t.id === id))
+            .filter(i => i !== -1)
+            .sort((a, b) => a - b);
           const batch = writeBatch(db);
           action.orderedIds.forEach((id, i) => {
-            batch.update(doc(db, 'users', uid, 'tasks', id), { sortIndex: i, updatedAt: ts() });
+            batch.update(doc(db, 'users', uid, 'tasks', id), { sortIndex: positions[i], updatedAt: ts() });
           });
-          batch.commit().catch(console.error);
+          batch.commit().catch(handleErrRef.current);
         }
         break;
       }
@@ -341,19 +355,19 @@ export function AppProvider({ children }) {
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, block };
-        if (uid) setDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), block).catch(console.error);
+        if (uid) setDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), block).catch(handleErrRef.current);
         break;
       }
 
       case 'UPDATE_SCHEDULED_BLOCK': {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
-        if (uid) updateDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id), updates).catch(console.error);
+        if (uid) updateDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id), updates).catch(handleErrRef.current);
         break;
       }
 
       case 'DELETE_SCHEDULED_BLOCK': {
-        if (uid) deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id)).catch(console.error);
+        if (uid) deleteDoc(doc(db, 'users', uid, 'scheduledBlocks', action.id)).catch(handleErrRef.current);
         break;
       }
 
@@ -362,15 +376,15 @@ export function AppProvider({ children }) {
         if (!block || !uid) break;
         const completed = !block.completed;
         const updates = { completed, updatedAt: ts() };
-        updateDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), updates).catch(console.error);
+        updateDoc(doc(db, 'users', uid, 'scheduledBlocks', block.id), updates).catch(handleErrRef.current);
         if (block.todoTaskId) {
-          updateDoc(doc(db, 'users', uid, 'tasks', block.todoTaskId), updates).catch(console.error);
+          updateDoc(doc(db, 'users', uid, 'tasks', block.todoTaskId), updates).catch(handleErrRef.current);
           if (completed) {
             const linkedTask = s.tasks.find(t => t.id === block.todoTaskId);
             if (linkedTask) {
               setDoc(doc(db, 'users', uid, 'settings', 'data'),
                 { lastCompletedTask: { ...linkedTask, completed } },
-                { merge: true }).catch(console.error);
+                { merge: true }).catch(handleErrRef.current);
             }
           }
         }
@@ -391,23 +405,23 @@ export function AppProvider({ children }) {
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, template };
-        if (uid) setDoc(doc(db, 'users', uid, 'recurringTemplates', template.id), template).catch(console.error);
+        if (uid) setDoc(doc(db, 'users', uid, 'recurringTemplates', template.id), template).catch(handleErrRef.current);
         break;
       }
 
       case 'UPDATE_RECURRING_TEMPLATE': {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
-        if (uid) updateDoc(doc(db, 'users', uid, 'recurringTemplates', action.id), updates).catch(console.error);
+        if (uid) updateDoc(doc(db, 'users', uid, 'recurringTemplates', action.id), updates).catch(handleErrRef.current);
         break;
       }
 
       case 'DELETE_RECURRING_TEMPLATE': {
         if (uid) {
-          deleteDoc(doc(db, 'users', uid, 'recurringTemplates', action.id)).catch(console.error);
+          deleteDoc(doc(db, 'users', uid, 'recurringTemplates', action.id)).catch(handleErrRef.current);
           s.tasks
             .filter(t => t.recurringTemplateId === action.id)
-            .forEach(t => deleteDoc(doc(db, 'users', uid, 'tasks', t.id)).catch(console.error));
+            .forEach(t => deleteDoc(doc(db, 'users', uid, 'tasks', t.id)).catch(handleErrRef.current));
         }
         break;
       }
@@ -418,19 +432,19 @@ export function AppProvider({ children }) {
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, note };
-        if (uid) setDoc(doc(db, 'users', uid, 'notes', note.id), note).catch(console.error);
+        if (uid) setDoc(doc(db, 'users', uid, 'notes', note.id), note).catch(handleErrRef.current);
         break;
       }
 
       case 'UPDATE_NOTE': {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
-        if (uid) updateDoc(doc(db, 'users', uid, 'notes', action.id), updates).catch(console.error);
+        if (uid) updateDoc(doc(db, 'users', uid, 'notes', action.id), updates).catch(handleErrRef.current);
         break;
       }
 
       case 'DELETE_NOTE': {
-        if (uid) deleteDoc(doc(db, 'users', uid, 'notes', action.id)).catch(console.error);
+        if (uid) deleteDoc(doc(db, 'users', uid, 'notes', action.id)).catch(handleErrRef.current);
         break;
       }
 
@@ -447,12 +461,12 @@ export function AppProvider({ children }) {
         enriched = { ...action, newTasks };
         if (uid) {
           newTasks.forEach(task =>
-            setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(console.error)
+            setDoc(doc(db, 'users', uid, 'tasks', task.id), task).catch(handleErrRef.current)
           );
           // Use arrayUnion so this is atomic and idempotent
           setDoc(doc(db, 'users', uid, 'settings', 'data'),
             { generatedDates: arrayUnion(action.dateStr) },
-            { merge: true }).catch(console.error);
+            { merge: true }).catch(handleErrRef.current);
         }
         break;
       }
@@ -528,7 +542,7 @@ export function AppProvider({ children }) {
         tasksToRoll.forEach(t => {
           batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
         });
-        batch.commit().catch(console.error);
+        batch.commit().catch(handleErrRef.current);
         baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
       };
 
@@ -572,7 +586,7 @@ export function AppProvider({ children }) {
       ];
     };
 
-    init().catch(console.error);
+    init().catch(handleErrRef.current);
 
     return () => {
       cancelled = true;
@@ -603,7 +617,7 @@ export function AppProvider({ children }) {
         tasksToRoll.forEach(t => {
           batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
         });
-        batch.commit().catch(console.error);
+        batch.commit().catch(handleErrRef.current);
         baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
       }
 
@@ -632,7 +646,7 @@ export function AppProvider({ children }) {
         showCompletedBlocks: state.showCompletedBlocks,
         lastCompletedTask: state.lastCompletedTask,
         currentPlannerDate: state.currentPlannerDate,
-      }, { merge: true }).catch(console.error);
+      }, { merge: true }).catch(handleErrRef.current);
     }, 1000);
     return () => clearTimeout(timer);
   }, [
@@ -646,7 +660,7 @@ export function AppProvider({ children }) {
     state.currentPlannerDate,
   ]);
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ state, dispatch, networkError }}>{children}</AppContext.Provider>;
 }
 
 export const useApp = () => useContext(AppContext);

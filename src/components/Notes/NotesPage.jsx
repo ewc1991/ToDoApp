@@ -44,7 +44,14 @@ export default function NotesPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  useEffect(() => () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null
+      recognitionRef.current.onend = null
+      recognitionRef.current.onerror = null
+      recognitionRef.current.stop()
+    }
+  }, [])
 
   const handleAdd = () => {
     if (!body.trim()) return
