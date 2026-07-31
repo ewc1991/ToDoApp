@@ -1,6 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import Icon from '../Icon.jsx'
 
 export default function Modal({ title, onClose, children, footer }) {
   const onCloseRef = useRef(onClose)
@@ -60,9 +59,7 @@ export default function Modal({ title, onClose, children, footer }) {
       >
         <div className="modal-header">
           <span className="modal-title" id={titleId}>{title}</span>
-          <button className="modal-close" onClick={() => onCloseRef.current()} aria-label="Close">
-            <Icon name="close" size={18} />
-          </button>
+          <button className="modal-close" onClick={() => onCloseRef.current()} aria-label="Close">×</button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

@@ -4,10 +4,15 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
-import Icon from '../Icon.jsx'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
-const CheckIcon = () => <Icon name="check" size={13} />
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M1.5 5l3 3 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 function SortableTask({ task, onEdit }) {
   const { dispatch } = useApp()
@@ -25,9 +30,7 @@ function SortableTask({ task, onEdit }) {
       style={style}
       className={`task-item${task.completed ? ' completed' : ''}`}
     >
-      <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">
-        <Icon name="grip" size={16} />
-      </span>
+      <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">⠿</span>
       <button
         type="button"
         role="checkbox"
@@ -129,10 +132,9 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
         <div className="section-actions">
           <button
             className="add-btn"
-            title="Add Task (N)"
-            aria-label="Add task"
+            title="Add task (N)"
             onClick={() => { setShowAdd(true) }}
-          ><Icon name="plus" size={18} /></button>
+          >+</button>
         </div>
       </div>
 
@@ -171,9 +173,9 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
 
         {tasks.length === 0 && backlogTasks.length === 0 && !showAdd && (
           <div className="empty-state">
-            <div className="empty-state-icon"><Icon name="list" size={28} /></div>
-            Plan your day.<br />
-            Press <strong>N</strong> or tap <strong>+</strong> to add a task.
+            <div className="empty-state-icon">☑</div>
+            Nothing here yet.<br />
+            Press <strong>N</strong> or tap <strong>+</strong> to add a task,<br />or drag a block from the time area.
           </div>
         )}
 

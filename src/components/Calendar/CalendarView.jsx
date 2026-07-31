@@ -1,6 +1,5 @@
 import React from 'react'
 import { useApp } from '../../store/AppContext.jsx'
-import Icon from '../Icon.jsx'
 import {
   MONTH_NAMES, DAY_NAMES,
   getDaysInMonth, getFirstDayOfMonth, makeDateStr, isToday, formatDisplayDate
@@ -51,12 +50,8 @@ export default function CalendarView() {
     <div className="calendar-view">
       <div className="calendar-nav">
         <div className="calendar-nav-arrows">
-          <button className="icon-btn" aria-label="Previous month" onClick={() => dispatch({ type: 'NAVIGATE_MONTH', dir: 'prev' })}>
-            <Icon name="chevronLeft" size={18} />
-          </button>
-          <button className="icon-btn" aria-label="Next month" onClick={() => dispatch({ type: 'NAVIGATE_MONTH', dir: 'next' })}>
-            <Icon name="chevronRight" size={18} />
-          </button>
+          <button className="icon-btn" onClick={() => dispatch({ type: 'NAVIGATE_MONTH', dir: 'prev' })}>‹</button>
+          <button className="icon-btn" onClick={() => dispatch({ type: 'NAVIGATE_MONTH', dir: 'next' })}>›</button>
         </div>
         <span className="calendar-month-year">{MONTH_NAMES[month]} {year}</span>
         <div className="calendar-selects">
@@ -77,9 +72,10 @@ export default function CalendarView() {
         </div>
         {(month !== new Date().getMonth() || year !== new Date().getFullYear()) && (
           <button
-            className="btn btn-secondary"
-            title="Go To Today"
+            className="icon-btn"
+            title="Go to today"
             onClick={() => dispatch({ type: 'SET_MONTH_YEAR', month: new Date().getMonth(), year: new Date().getFullYear() })}
+            style={{ fontSize: 17, width: 'auto', padding: '0 8px' }}
           >
             Today
           </button>

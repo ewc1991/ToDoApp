@@ -1,11 +1,5 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-
-// Self-hosted variable fonts. A font CDN is exactly what fails on a bad
-// connection, and offline it never arrives — fatal for a PWA.
-import '@fontsource-variable/nunito'   // display face — wordmark, headings, names of things
-import '@fontsource-variable/inter'    // body face — everything the system says
-
 import App from './App.jsx'
 import './App.css'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
