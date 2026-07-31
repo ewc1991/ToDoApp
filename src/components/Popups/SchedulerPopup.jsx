@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
+import MicIcon from '../MicIcon.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { getNearestHalfHour, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
+import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 
 export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const { state, dispatch } = useApp()
@@ -17,7 +19,16 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const [blockDate, setBlockDate] = useState(existing?.date || date)
   const titleRef = useRef(null)
 
+  const { recording, toggle: toggleRecording } = useSpeechInput(
+    text => setTitle(prev => appendTranscript(prev, text))
+  )
+
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
+
+  const handleDictate = () => {
+    toggleRecording()
+    titleRef.current?.focus()
+  }
 
   // Auto-adjust end time when start changes
   const handleStartChange = (val) => {
@@ -52,7 +63,10 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   }
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'TEXTAREA') {
+    // BUTTON is excluded so Enter on the Dictate button toggles the mic
+    // instead of also saving the block.
+    const tag = e.target.tagName
+    if (e.key === 'Enter' && !e.shiftKey && tag !== 'TEXTAREA' && tag !== 'BUTTON') {
       e.preventDefault(); handleSave()
     }
   }
@@ -73,8 +87,21 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
       }
     >
       <div className="form-group" onKeyDown={handleKey}>
-        <label className="form-label">Title</label>
+        <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Title</span>
+          <button
+            className={`dictate-btn${recording ? ' recording' : ''}`}
+            onClick={handleDictate}
+            aria-pressed={recording}
+            title={recording ? 'Stop recording' : 'Dictate the title'}
+            type="button"
+          >
+            <MicIcon size={13} />
+            {recording ? 'Stop' : 'Dictate'}
+          </button>
+        </label>
         <input ref={titleRef} className="form-input" placeholder="Task title" value={title} onChange={e => setTitle(e.target.value)} />
+        {recording && <span className="dictate-hint">● Listening… speak the block name</span>}
       </div>
       {existing && (
         <div className="form-group">

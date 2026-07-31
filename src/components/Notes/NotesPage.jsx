@@ -2,18 +2,9 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import { noteToTask } from '../../utils/noteUtils.js'
+import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
+import MicIcon from '../MicIcon.jsx'
 import NoteModal from './NoteModal.jsx'
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 10a7 7 0 0014 0"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-      <line x1="8" y1="22" x2="16" y2="22"/>
-    </svg>
-  )
-}
 
 function formatNoteDate(isoStr) {
   const d = new Date(isoStr)
@@ -24,10 +15,12 @@ export default function NotesPage() {
   const { state, dispatch } = useApp()
   const [body, setBody] = useState('')
   const [date, setDate] = useState('')
-  const [recording, setRecording] = useState(false)
   const [editId, setEditId] = useState(null)
-  const recognitionRef = useRef(null)
   const bodyRef = useRef(null)
+
+  const { recording, toggle: toggleSpeech } = useSpeechInput(
+    text => setBody(prev => appendTranscript(prev, text))
+  )
 
   const notes = useMemo(() =>
     [...state.notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
@@ -44,15 +37,6 @@ export default function NotesPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
-
-  useEffect(() => () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.onresult = null
-      recognitionRef.current.onend = null
-      recognitionRef.current.onerror = null
-      recognitionRef.current.stop()
-    }
   }, [])
 
   const handleAdd = () => {
@@ -76,36 +60,7 @@ export default function NotesPage() {
   }
 
   const toggleRecording = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) {
-      alert('Voice input is not supported in this browser. Try Chrome or Edge.')
-      return
-    }
-    if (recording) {
-      recognitionRef.current?.stop()
-      setRecording(false)
-      return
-    }
-    const recognition = new SR()
-    recognition.continuous = true
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
-    recognition.onresult = (e) => {
-      const transcript = Array.from(e.results)
-        .slice(e.resultIndex)
-        .filter(r => r.isFinal)
-        .map(r => r[0].transcript)
-        .join(' ')
-      if (transcript) setBody(prev => prev ? prev + ' ' + transcript : transcript)
-    }
-    recognition.onend = () => setRecording(false)
-    recognition.onerror = (e) => {
-      setRecording(false)
-      if (e.error === 'not-allowed') alert('Microphone access was denied. Please allow it in your browser settings.')
-    }
-    recognition.start()
-    recognitionRef.current = recognition
-    setRecording(true)
+    toggleSpeech()
     bodyRef.current?.focus()
   }
 

@@ -2,17 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import Modal from '../Popups/Modal.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { noteToTask } from '../../utils/noteUtils.js'
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 10a7 7 0 0014 0"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-      <line x1="8" y1="22" x2="16" y2="22"/>
-    </svg>
-  )
-}
+import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
+import MicIcon from '../MicIcon.jsx'
 
 export default function NoteModal({ noteId, onClose }) {
   const { state, dispatch } = useApp()
@@ -20,19 +11,13 @@ export default function NoteModal({ noteId, onClose }) {
 
   const [body, setBody] = useState(note?.body || '')
   const [date, setDate] = useState('')
-  const [recording, setRecording] = useState(false)
-  const recognitionRef = useRef(null)
   const bodyRef = useRef(null)
 
+  const { recording, toggle: toggleRecording } = useSpeechInput(
+    text => setBody(prev => appendTranscript(prev, text))
+  )
+
   useEffect(() => { setTimeout(() => bodyRef.current?.focus(), 50) }, [])
-  useEffect(() => () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.onresult = null
-      recognitionRef.current.onend = null
-      recognitionRef.current.onerror = null
-      recognitionRef.current.stop()
-    }
-  }, [])
 
   if (!note) return null
 
@@ -61,39 +46,6 @@ export default function NoteModal({ noteId, onClose }) {
 
   const handleConvert = () => convertToTask(null)
 
-  const toggleRecording = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) {
-      alert('Voice input is not supported in this browser. Try Chrome or Edge.')
-      return
-    }
-    if (recording) {
-      recognitionRef.current?.stop()
-      setRecording(false)
-      return
-    }
-    const recognition = new SR()
-    recognition.continuous = true
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
-    recognition.onresult = (e) => {
-      const transcript = Array.from(e.results)
-        .slice(e.resultIndex)
-        .filter(r => r.isFinal)
-        .map(r => r[0].transcript)
-        .join(' ')
-      if (transcript) setBody(prev => prev ? prev + ' ' + transcript : transcript)
-    }
-    recognition.onend = () => setRecording(false)
-    recognition.onerror = (e) => {
-      setRecording(false)
-      if (e.error === 'not-allowed') alert('Microphone access was denied. Please allow it in your browser settings.')
-    }
-    recognition.start()
-    recognitionRef.current = recognition
-    setRecording(true)
-  }
-
   return (
     <Modal
       title="Note"
@@ -121,9 +73,10 @@ export default function NoteModal({ noteId, onClose }) {
           <button
             className={`note-modal-mic${recording ? ' recording' : ''}`}
             onClick={toggleRecording}
+            aria-pressed={recording}
             type="button"
           >
-            <MicIcon />
+            <MicIcon size={13} />
             {recording ? 'Stop' : 'Dictate'}
           </button>
         </label>

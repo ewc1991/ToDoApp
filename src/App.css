@@ -1059,3 +1059,24 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   white-space: pre-wrap; word-break: break-word;
   max-height: 220px; overflow: auto;
 }
+
+/* ── Dictate button (time block scheduler) ─────────────── */
+.dictate-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700; color: var(--gold-dark);
+  padding: 4px 10px; border-radius: 99px;
+  border: 1.5px solid var(--gold-border);
+  background: var(--gold-light);
+  transition: all .18s cubic-bezier(0.34,1.56,0.64,1);
+}
+.dictate-btn:hover { border-color: var(--gold); transform: scale(1.05); box-shadow: 0 2px 8px rgba(212,160,23,.25); }
+.dictate-btn.recording {
+  background: var(--grad-warm);
+  border-color: transparent; color: #fff;
+  animation: pulse-dictate 1.4s ease-in-out infinite;
+}
+@keyframes pulse-dictate {
+  0%, 100% { box-shadow: 0 2px 12px rgba(232,85,55,.4); }
+  50%      { box-shadow: 0 2px 22px rgba(212,160,23,.6), 0 0 0 5px rgba(232,85,55,.1); }
+}
+.dictate-hint { font-size: 12px; font-weight: 600; color: var(--coral-dark); margin-top: 2px; }
