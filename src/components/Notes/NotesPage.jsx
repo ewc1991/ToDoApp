@@ -2,18 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import { noteToTask } from '../../utils/noteUtils.js'
+import Icon from '../Icon.jsx'
 import NoteModal from './NoteModal.jsx'
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 10a7 7 0 0014 0"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-      <line x1="8" y1="22" x2="16" y2="22"/>
-    </svg>
-  )
-}
 
 function formatNoteDate(isoStr) {
   const d = new Date(isoStr)
@@ -130,14 +120,20 @@ export default function NotesPage() {
             <button
               className={`notes-mic-btn${recording ? ' recording' : ''}`}
               onClick={toggleRecording}
-              title={recording ? 'Stop recording' : 'Dictate note (uses browser speech)'}
+              title={recording ? 'Stop Recording' : 'Dictate Note'}
+              aria-label={recording ? 'Stop recording' : 'Dictate note'}
+              aria-pressed={recording}
               type="button"
             >
-              <MicIcon />
+              <Icon name="mic" size={19} />
             </button>
           </div>
           <div className="notes-composer-footer">
-            <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
+            <span className="notes-composer-hint">
+              {recording
+                ? <><Icon name="dot" size={9} className="rec-dot" /> Listening…</>
+                : 'Ctrl+Enter to save'}
+            </span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 type="date"
@@ -164,9 +160,9 @@ export default function NotesPage() {
 
         {/* Notes grid */}
         {notes.length === 0 ? (
-          <div className="empty-state" style={{ marginTop: 48 }}>
-            <div className="empty-state-icon">📝</div>
-            Add your first note above.
+          <div className="empty-state" style={{ marginTop: 40 }}>
+            <div className="empty-state-icon"><Icon name="note" size={28} /></div>
+            Capture a thought.<br />Type above or tap the mic to dictate.
           </div>
         ) : (
           <div className="notes-grid">

@@ -2,17 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Modal from '../Popups/Modal.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { noteToTask } from '../../utils/noteUtils.js'
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 10a7 7 0 0014 0"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-      <line x1="8" y1="22" x2="16" y2="22"/>
-    </svg>
-  )
-}
+import Icon from '../Icon.jsx'
 
 export default function NoteModal({ noteId, onClose }) {
   const { state, dispatch } = useApp()
@@ -102,7 +92,7 @@ export default function NoteModal({ noteId, onClose }) {
         <>
           <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
           <button className="btn btn-convert" onClick={handleConvert} title="Create a To Do from this note">
-            → To Do
+            <Icon name="arrowRight" size={15} /> To Do
           </button>
           <div style={{ flex: 1 }} />
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -121,9 +111,10 @@ export default function NoteModal({ noteId, onClose }) {
           <button
             className={`note-modal-mic${recording ? ' recording' : ''}`}
             onClick={toggleRecording}
+            aria-pressed={recording}
             type="button"
           >
-            <MicIcon />
+            <Icon name="mic" size={14} />
             {recording ? 'Stop' : 'Dictate'}
           </button>
         </label>

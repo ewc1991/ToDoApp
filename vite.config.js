@@ -24,8 +24,8 @@ export default defineConfig({
         name: 'Planner',
         short_name: 'Planner',
         description: 'Daily planner with time blocks and recurring tasks',
-        theme_color: '#E8604A',
-        background_color: '#ffffff',
+        theme_color: '#FFDFAF',
+        background_color: '#FFDFAF',
         display: 'standalone',
         start_url: '/',
         icons: [
@@ -34,7 +34,17 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // woff2 matters: the fonts are self-hosted precisely so they work
+        // offline, which only holds if they're in the precache.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+        // Fontsource ships every subset. unicode-range means a browser only
+        // fetches what it needs, but the precache would take all of them —
+        // so keep the non-latin subsets network-only.
+        globIgnores: [
+          '**/*-cyrillic-*.woff2',
+          '**/*-greek-*.woff2',
+          '**/*-vietnamese-*.woff2',
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,

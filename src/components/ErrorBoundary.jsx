@@ -1,4 +1,5 @@
 import React from 'react'
+import Icon from './Icon.jsx'
 
 async function clearCachesAndReload() {
   try {
@@ -38,7 +39,7 @@ export default class ErrorBoundary extends React.Component {
     return (
       <div className="error-boundary">
         <div className="error-boundary-card">
-          <div className="error-boundary-icon">⚠</div>
+          <div className="error-boundary-icon"><Icon name="warning" size={28} /></div>
           <h1 className="error-boundary-title">Something went wrong</h1>
           <p className="error-boundary-text">
             The app hit an unexpected error. Your data is saved — reloading usually fixes it.

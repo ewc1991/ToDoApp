@@ -7,6 +7,7 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatDisplayDate } from '../../utils/dateUtils.js'
 import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
+import Icon from '../Icon.jsx'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
@@ -135,9 +136,7 @@ export default function DayPlanner({ date }) {
     <div className="day-planner">
       <div className="day-planner-header">
         <button className="back-btn" onClick={() => dispatch({ type: 'NAVIGATE_CALENDAR' })}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Icon name="chevronLeft" size={15} />
           Calendar
         </button>
         <span className="day-planner-date">{formatDisplayDate(date)}</span>

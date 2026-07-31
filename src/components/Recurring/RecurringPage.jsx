@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import Icon from '../Icon.jsx'
 import RecurringPopup from '../Popups/RecurringPopup.jsx'
 
 const RECUR_LABELS = {
@@ -68,19 +69,21 @@ export default function RecurringPage() {
     <div className="recurring-page page">
       <div className="recurring-toolbar">
         <span className="recurring-toolbar-title">Recurring Tasks</span>
-        <button className="add-btn" title="New recurring task (N)" onClick={() => setShowNew(true)}>+</button>
+        <button className="add-btn" title="New Recurring Task (N)" aria-label="New recurring task" onClick={() => setShowNew(true)}>
+          <Icon name="plus" size={18} />
+        </button>
       </div>
 
       <div className="recurring-list">
         {templates.length === 0 && (
-          <div className="empty-state" style={{ marginTop: 48 }}>
-            <div className="empty-state-icon">🔁</div>
-            No recurring tasks yet.<br />Press <strong>N</strong> or <strong>+</strong> to create one.
+          <div className="empty-state" style={{ marginTop: 40 }}>
+            <div className="empty-state-icon"><Icon name="repeat" size={28} /></div>
+            Set up a routine.<br />Press <strong>N</strong> or <strong>+</strong> to create one.
           </div>
         )}
         {templates.map(tmpl => (
           <button key={tmpl.id} type="button" className="recurring-item" onClick={() => setEditId(tmpl.id)}>
-            <div className="recurring-icon">↺</div>
+            <div className="recurring-icon"><Icon name="repeat" size={20} /></div>
             <div className="recurring-info">
               <div className="recurring-title">{tmpl.title}</div>
               <div className="recurring-schedule">{scheduleLabel(tmpl)}</div>

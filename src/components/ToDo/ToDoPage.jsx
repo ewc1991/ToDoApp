@@ -2,15 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatShortDate } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import Icon from '../Icon.jsx'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M1.5 5l3 3 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
+const CheckIcon = () => <Icon name="check" size={13} />
 
 export default function ToDoPage() {
   const { state, dispatch } = useApp()
@@ -61,9 +56,9 @@ export default function ToDoPage() {
           <button
             className="undo-btn"
             onClick={() => { dispatch({ type: 'UNDO_LAST_COMPLETION' }); setShowUndo(false) }}
-            title="Undo last completion (Ctrl+Z)"
+            title="Undo Last Completion (Ctrl+Z)"
           >
-            ↩ Undo
+            <Icon name="undo" size={15} /> Undo
           </button>
         )}
         <label className="show-completed-toggle">
@@ -74,14 +69,18 @@ export default function ToDoPage() {
           />
           Show Completed
         </label>
-        <button className="add-btn" title="New task (N)" onClick={() => setShowNew(true)}>+</button>
+        <button className="add-btn" title="New Task (N)" aria-label="New task" onClick={() => setShowNew(true)}>
+          <Icon name="plus" size={18} />
+        </button>
       </div>
 
       <div className="todo-list">
         {sortedTasks.length === 0 && (
-          <div className="empty-state" style={{ marginTop: 48 }}>
-            <div className="empty-state-icon">✓</div>
-            {state.showCompletedTasks ? 'No tasks yet.' : 'All done! Press N or + to add more.'}
+          <div className="empty-state" style={{ marginTop: 40 }}>
+            <div className="empty-state-icon"><Icon name="check" size={28} /></div>
+            {state.showCompletedTasks
+              ? <>Nothing on the list.<br />Press <strong>N</strong> or <strong>+</strong> to add a task.</>
+              : <>Everything is done.<br />Press <strong>N</strong> or <strong>+</strong> to add more.</>}
           </div>
         )}
         {sortedTasks.map(task => (

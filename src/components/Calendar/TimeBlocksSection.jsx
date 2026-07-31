@@ -5,6 +5,7 @@ import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } f
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import Icon from '../Icon.jsx'
 
 const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
 const DEFAULT_START =  7 * 60  // 7 AM
@@ -12,13 +13,7 @@ const DEFAULT_END   = 19 * 60  // 7 PM
 const floorTo30     = (mins) => Math.floor(mins / 30) * 30
 const BLOCKS_LEFT   = 72       // px: gutter for time labels (matches CSS)
 
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M1.5 5l3 3 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
+const CheckIcon = () => <Icon name="check" size={12} />
 
 // Live-tracked so rotating a tablet or switching input mode re-enables block dragging.
 function useCoarsePointer() {
@@ -115,6 +110,9 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
         <div className="sched-block-title">{block.title}</div>
         <button
           className={`block-done-btn${block.completed ? ' checked' : ''}`}
+          role="checkbox"
+          aria-checked={block.completed}
+          aria-label={`Mark "${block.title}" ${block.completed ? 'incomplete' : 'complete'}`}
           onPointerDown={e => e.stopPropagation()}
           onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_BLOCK_COMPLETE', id: block.id }) }}
         >
@@ -234,7 +232,9 @@ export default function TimeBlocksSection({ date }) {
             />
             Whole Day
           </label>
-          <button className="add-btn" title="Add time block (T)" onClick={() => openScheduler()}>+</button>
+          <button className="add-btn" title="Add Time Block (T)" aria-label="Add time block" onClick={() => openScheduler()}>
+            <Icon name="plus" size={18} />
+          </button>
         </div>
       </div>
 
