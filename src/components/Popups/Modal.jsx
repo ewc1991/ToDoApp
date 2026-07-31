@@ -1,14 +1,20 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import ReactDOM from 'react-dom'
 
 export default function Modal({ title, onClose, children, footer }) {
   const onCloseRef = useRef(onClose)
   const modalRef = useRef(null)
+  const titleId = useId()
   useEffect(() => { onCloseRef.current = onClose })
 
-  // Escape key to close
+  // Escape closes only the topmost modal, so stacked dialogs don't all close at once
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onCloseRef.current() }
+    const handler = (e) => {
+      if (e.key !== 'Escape') return
+      const open = document.querySelectorAll('.modal-backdrop')
+      if (open.length && open[open.length - 1] !== modalRef.current?.parentElement) return
+      onCloseRef.current()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
@@ -43,10 +49,17 @@ export default function Modal({ title, onClose, children, footer }) {
 
   const content = (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onCloseRef.current() }}>
-      <div className="modal" ref={modalRef} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
-          <span className="modal-title">{title}</span>
-          <button className="modal-close" onClick={onCloseRef.current} aria-label="Close">×</button>
+          <span className="modal-title" id={titleId}>{title}</span>
+          <button className="modal-close" onClick={() => onCloseRef.current()} aria-label="Close">×</button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

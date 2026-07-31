@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
+import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import { noteToTask } from '../../utils/noteUtils.js'
 import NoteModal from './NoteModal.jsx'
 
 function MicIcon() {
@@ -34,8 +36,8 @@ export default function NotesPage() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+      if (shouldIgnoreHotkey(e)) return
+      if (e.key === 'n') {
         e.preventDefault()
         bodyRef.current?.focus()
       }
@@ -54,11 +56,12 @@ export default function NotesPage() {
   }, [])
 
   const handleAdd = () => {
-    if (!body.trim()) return
+    const trimmed = body.trim()
+    if (!trimmed) return
     if (date) {
-      dispatch({ type: 'ADD_TASK', title: body.trim().slice(0, 100), notes: '', assignedDate: date })
+      dispatch({ type: 'ADD_TASK', ...noteToTask(trimmed), assignedDate: date })
     } else {
-      dispatch({ type: 'ADD_NOTE', body: body.trim() })
+      dispatch({ type: 'ADD_NOTE', body: trimmed })
     }
     setBody('')
     setDate('')
@@ -168,10 +171,10 @@ export default function NotesPage() {
         ) : (
           <div className="notes-grid">
             {notes.map(note => (
-              <div key={note.id} className="note-card" onClick={() => setEditId(note.id)}>
+              <button key={note.id} type="button" className="note-card" onClick={() => setEditId(note.id)}>
                 {note.body && <div className="note-card-body">{note.body}</div>}
                 <div className="note-card-date">{formatNoteDate(note.createdAt)}</div>
-              </div>
+              </button>
             ))}
           </div>
         )}

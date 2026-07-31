@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from '../Popups/Modal.jsx'
 import { useApp } from '../../store/AppContext.jsx'
+import { noteToTask } from '../../utils/noteUtils.js'
 
 function MicIcon() {
   return (
@@ -35,30 +36,30 @@ export default function NoteModal({ noteId, onClose }) {
 
   if (!note) return null
 
+  const convertToTask = (assignedDate) => {
+    const task = noteToTask(body)
+    if (!task) return
+    dispatch({ type: 'ADD_TASK', ...task, assignedDate })
+    dispatch({ type: 'DELETE_NOTE', id: note.id })
+    onClose()
+  }
+
   const handleSave = () => {
     if (date) {
-      const taskTitle = body.slice(0, 100).trim()
-      if (!taskTitle) return
-      dispatch({ type: 'ADD_TASK', title: taskTitle, notes: '', assignedDate: date })
-      dispatch({ type: 'DELETE_NOTE', id: note.id })
+      convertToTask(date)
     } else {
       dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
+      onClose()
     }
-    onClose()
   }
 
   const handleDelete = () => {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return
     dispatch({ type: 'DELETE_NOTE', id: note.id })
     onClose()
   }
 
-  const handleConvert = () => {
-    const taskTitle = body.slice(0, 100).trim()
-    if (!taskTitle) return
-    dispatch({ type: 'ADD_TASK', title: taskTitle, notes: '', assignedDate: null })
-    dispatch({ type: 'DELETE_NOTE', id: note.id })
-    onClose()
-  }
+  const handleConvert = () => convertToTask(null)
 
   const toggleRecording = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition

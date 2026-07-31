@@ -4,6 +4,7 @@ import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
+import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 
 const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
 const DEFAULT_START =  7 * 60  // 7 AM
@@ -19,9 +20,24 @@ function CheckIcon() {
   )
 }
 
+// Live-tracked so rotating a tablet or switching input mode re-enables block dragging.
+function useCoarsePointer() {
+  const [coarse, setCoarse] = useState(() => window.matchMedia('(pointer: coarse)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    const onChange = (e) => setCoarse(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return coarse
+}
+
 function ScheduledBlock({ block, startOffset, onEdit }) {
   const { dispatch } = useApp()
-  const isMobile = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
+  const isMobile = useCoarsePointer()
+  // End time while a resize drag is in flight; null when not resizing.
+  // Kept local so the drag doesn't write to Firestore on every pointer move.
+  const [draftEndTime, setDraftEndTime] = useState(null)
   const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
     id: `block-${block.id}`,
     data: { type: 'scheduled-block', blockId: block.id },
@@ -29,7 +45,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
   })
 
   const startMin = timeToMinutes(block.startTime)
-  const endMin   = timeToMinutes(block.endTime)
+  const endMin   = timeToMinutes(draftEndTime ?? block.endTime)
   const duration = Math.max(endMin - startMin, 15)
 
   const top    = ((startMin - startOffset) / 60) * HOUR_HEIGHT
@@ -55,21 +71,35 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
     const startY        = e.clientY
     const origEndMin    = timeToMinutes(block.endTime)
     const blockStartMin = timeToMinutes(block.startTime)
+    let latestEnd       = origEndMin
     document.body.style.cursor     = 'ns-resize'
     document.body.style.userSelect = 'none'
+
+    // Track the drag locally and commit once on release — dispatching here would
+    // write to Firestore on every pointer move (100+ writes for one gesture).
     const onPointerMove = (e) => {
       const deltaMin = Math.round(((e.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15
-      const newEnd = Math.max(blockStartMin + 15, Math.min(1440, origEndMin + deltaMin))
-      dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: block.id, updates: { endTime: minutesToTime(newEnd) } })
+      latestEnd = Math.max(blockStartMin + 15, Math.min(1440, origEndMin + deltaMin))
+      setDraftEndTime(minutesToTime(latestEnd))
     }
     const onPointerUp = () => {
       document.body.style.cursor     = ''
       document.body.style.userSelect = ''
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
+      if (latestEnd !== origEndMin) {
+        dispatch({
+          type: 'UPDATE_SCHEDULED_BLOCK',
+          id: block.id,
+          updates: { endTime: minutesToTime(latestEnd) },
+        })
+      }
+      setDraftEndTime(null)
     }
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
   }
 
   return (
@@ -102,7 +132,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
 }
 
 export default function TimeBlocksSection({ date }) {
-  const { state, dispatch } = useApp()
+  const { state } = useApp()
   const [schedulerState, setSchedulerState] = useState(null)
   const [showWholeDay, setShowWholeDay] = useState(false)
   const scrollRef = useRef(null)
@@ -147,7 +177,7 @@ export default function TimeBlocksSection({ date }) {
       return timeToMinutes(b.startTime) < displayEndMinutes &&
              timeToMinutes(b.endTime)   > displayStartMinutes
     })
-  }, [blocks, displayStartMinutes, displayEndMinutes, showWholeDay, nowMinutes])
+  }, [blocks, displayStartMinutes, displayEndMinutes, showWholeDay, nowMinutes, isToday])
 
   const layouted     = useMemo(() => layoutBlocks(displayBlocks), [displayBlocks])
   const canvasHeight = ((displayEndMinutes - displayStartMinutes) / 60) * HOUR_HEIGHT
@@ -163,6 +193,9 @@ export default function TimeBlocksSection({ date }) {
     } else {
       scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     }
+    // Intentionally keyed to showWholeDay only — including nowMinutes would yank
+    // the scroll position back every minute while the user is reading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showWholeDay])
 
   const { setNodeRef, isOver } = useDroppable({ id: 'time-blocks-droppable' })
@@ -172,8 +205,8 @@ export default function TimeBlocksSection({ date }) {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 't' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openScheduler() }
+      if (shouldIgnoreHotkey(e)) return
+      if (e.key === 't') { e.preventDefault(); openScheduler() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

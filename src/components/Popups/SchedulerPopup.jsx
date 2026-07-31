@@ -45,7 +45,9 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   }
 
   const handleDelete = () => {
-    if (existing) dispatch({ type: 'DELETE_SCHEDULED_BLOCK', id: existing.id })
+    if (!existing) return onClose()
+    if (!window.confirm(`Delete the time block "${existing.title}"? This cannot be undone.`)) return
+    dispatch({ type: 'DELETE_SCHEDULED_BLOCK', id: existing.id })
     onClose()
   }
 

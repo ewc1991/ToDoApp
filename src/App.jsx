@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { useApp } from './store/AppContext.jsx'
 import { useAuth } from './store/AuthContext.jsx'
+import { isTypingTarget } from './utils/hotkeys.js'
 import Header from './components/Header.jsx'
 import CalendarPage from './components/Calendar/CalendarPage.jsx'
 import ToDoPage from './components/ToDo/ToDoPage.jsx'
@@ -51,7 +52,7 @@ export default function App() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+      if (isTypingTarget(e.target)) return
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault()
         dispatch({ type: 'UNDO_LAST_COMPLETION' })

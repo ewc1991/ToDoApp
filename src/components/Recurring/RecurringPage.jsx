@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
+import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import RecurringPopup from '../Popups/RecurringPopup.jsx'
 
 const RECUR_LABELS = {
@@ -49,8 +50,8 @@ export default function RecurringPage() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'n' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); setShowNew(true) }
+      if (shouldIgnoreHotkey(e)) return
+      if (e.key === 'n') { e.preventDefault(); setShowNew(true) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -78,14 +79,14 @@ export default function RecurringPage() {
           </div>
         )}
         {templates.map(tmpl => (
-          <div key={tmpl.id} className="recurring-item" onClick={() => setEditId(tmpl.id)}>
+          <button key={tmpl.id} type="button" className="recurring-item" onClick={() => setEditId(tmpl.id)}>
             <div className="recurring-icon">↺</div>
             <div className="recurring-info">
               <div className="recurring-title">{tmpl.title}</div>
               <div className="recurring-schedule">{scheduleLabel(tmpl)}</div>
               {tmpl.notes && <div className="task-notes" style={{ marginTop: 2 }}>{tmpl.notes}</div>}
             </div>
-          </div>
+          </button>
         ))}
       </div>
 

@@ -148,6 +148,7 @@ export default function DayPlanner({ date }) {
         collisionDetection={customCollision}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveTask(null)}
       >
         <div className="planner-body">
           <UnscheduledSection tasks={unscheduledTasks} backlogTasks={backlogTasks} date={date} activeId={activeTask?.id} width={panelWidth} />

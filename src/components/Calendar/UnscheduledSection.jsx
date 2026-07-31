@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext.jsx'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
+import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
@@ -30,13 +31,17 @@ function SortableTask({ task, onEdit }) {
       className={`task-item${task.completed ? ' completed' : ''}`}
     >
       <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">⠿</span>
-      <div
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={task.completed}
+        aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
         className={`task-check${task.completed ? ' checked' : ''}`}
         onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
       >
         <CheckIcon />
-      </div>
-      <div className="task-content" onClick={() => onEdit(task.id)}>
+      </button>
+      <button type="button" className="task-content" onClick={() => onEdit(task.id)}>
         <div className="task-title">{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
         {task.recurringTemplateId && (
@@ -44,7 +49,7 @@ function SortableTask({ task, onEdit }) {
             <span className="task-badge">Recurring</span>
           </div>
         )}
-      </div>
+      </button>
     </div>
   )
 }
@@ -53,16 +58,20 @@ function StaticTask({ task, onEdit }) {
   const { dispatch } = useApp()
   return (
     <div className={`task-item static-task${task.completed ? ' completed' : ''}`}>
-      <div
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={task.completed}
+        aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
         className={`task-check${task.completed ? ' checked' : ''}`}
         onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
       >
         <CheckIcon />
-      </div>
-      <div className="task-content" onClick={() => onEdit(task.id)}>
+      </button>
+      <button type="button" className="task-content" onClick={() => onEdit(task.id)}>
         <div className="task-title">{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-      </div>
+      </button>
     </div>
   )
 }
@@ -82,8 +91,8 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
   // Keyboard shortcut: 'n' opens inline add
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+      if (shouldIgnoreHotkey(e)) return
+      if (e.key === 'n') {
         e.preventDefault()
         setShowAdd(true)
         setTimeout(() => inlineRef.current?.focus(), 30)

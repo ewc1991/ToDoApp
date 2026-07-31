@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatShortDate } from '../../utils/dateUtils.js'
+import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
@@ -32,8 +33,8 @@ export default function ToDoPage() {
   // Keyboard shortcut
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'n' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); setShowNew(true) }
+      if (shouldIgnoreHotkey(e)) return
+      if (e.key === 'n') { e.preventDefault(); setShowNew(true) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -84,18 +85,18 @@ export default function ToDoPage() {
           </div>
         )}
         {sortedTasks.map(task => (
-          <div
-            key={task.id}
-            className={`todo-item${task.completed ? ' completed' : ''}`}
-            onClick={() => setEditId(task.id)}
-          >
-            <div
+          <div key={task.id} className={`todo-item${task.completed ? ' completed' : ''}`}>
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={task.completed}
+              aria-label={`Mark "${task.title}" ${task.completed ? 'incomplete' : 'complete'}`}
               className={`task-check${task.completed ? ' checked' : ''}`}
               onClick={e => { e.stopPropagation(); dispatch({ type: 'TOGGLE_TASK_COMPLETE', id: task.id }) }}
             >
               <CheckIcon />
-            </div>
-            <div className="task-content">
+            </button>
+            <button type="button" className="task-content" onClick={() => setEditId(task.id)}>
               <div className="task-title">{task.title}</div>
               {task.notes && <div className="task-notes">{task.notes}</div>}
               <div className="task-meta">
@@ -103,7 +104,7 @@ export default function ToDoPage() {
                   <span className="task-badge date">{formatShortDate(task.assignedDate)}</span>
                 )}
               </div>
-            </div>
+            </button>
           </div>
         ))}
       </div>

@@ -24,7 +24,9 @@ export default function ToDoPopup({ taskId, date, onClose }) {
   }
 
   const handleDelete = () => {
-    if (existing) dispatch({ type: 'DELETE_TASK', id: existing.id })
+    if (!existing) return onClose()
+    if (!window.confirm(`Delete "${existing.title}"? This cannot be undone.`)) return
+    dispatch({ type: 'DELETE_TASK', id: existing.id })
     onClose()
   }
 

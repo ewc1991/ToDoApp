@@ -6,13 +6,31 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
-import { today } from '../utils/dateUtils';
+import { today, formatDate } from '../utils/dateUtils';
 import { shouldRecurOnDate } from '../utils/recurringUtils';
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
 
 const now = new Date();
+
+// Recurrence types whose incomplete instances roll forward to today.
+// daily/weekdays/weekends deliberately don't roll — a missed day is just missed.
+const ROLLOVER_TYPES = new Set(['weekly', 'biweekly', 'monthly']);
+// Non-rolling recurring instances are deleted once older than this, so they
+// don't accumulate in Firestore (and in memory) forever.
+const STALE_RECURRING_DAYS = 14;
+
+const dateDaysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return formatDate(d);
+};
+
+// Next sortIndex that can't collide with an existing one.
+// (tasks.length collides as soon as anything has been deleted.)
+const nextSortIndex = (tasks) =>
+  tasks.reduce((max, t) => Math.max(max, t.sortIndex ?? -1), -1) + 1;
 
 const INITIAL_STATE = {
   tasks: [],
@@ -28,21 +46,22 @@ const INITIAL_STATE = {
   lastVisitDate: today(),
   lastCompletedTask: null,
   showCompletedTasks: false,
-  showCompletedBlocks: false,
 };
 
-// Merge settings from Firestore into current state, preserving client-only navigation state
-function applySettings(state, settings) {
+// Merge settings from Firestore into current state, preserving client-only navigation state.
+// `hydrate` is true only for the first snapshot after sign-in.
+function applySettings(state, settings, hydrate) {
   const todayStr = today();
-  const merged = { ...state, ...settings };
+  const { currentPlannerDate: incomingDate, ...rest } = settings;
+  const merged = { ...state, ...rest };
   if (merged.lastVisitDate !== todayStr) {
     return { ...merged, currentPlannerDate: null, lastVisitDate: todayStr, lastCompletedTask: null };
   }
-  // If the user just navigated to a day locally, don't let a stale Firestore snapshot
-  // (e.g. triggered by GENERATE_RECURRING_FOR_DATE) overwrite currentPlannerDate back to null.
-  if (state.currentPlannerDate !== null) {
-    merged.currentPlannerDate = state.currentPlannerDate;
-  }
+  // Which day you're viewing is restored once on load, then owned entirely by the client.
+  // Any later echo would be stale: writes like TOGGLE_TASK_COMPLETE merge into the same
+  // settings doc, so their snapshots still carry the old date and would otherwise bounce
+  // the user back into a day view they had already left.
+  if (hydrate && incomingDate !== undefined) merged.currentPlannerDate = incomingDate;
   return merged;
 }
 
@@ -80,7 +99,7 @@ function reducer(state, action) {
       return { ...state, notes: state.notes.filter(n => n.id !== action.id) };
 
     case 'SET_SETTINGS':
-      return applySettings(state, action.settings);
+      return applySettings(state, action.settings, action.hydrate);
 
     // ── Tasks ───────────────────────────────────────────────
     case 'ADD_TASK':
@@ -228,16 +247,14 @@ function reducer(state, action) {
     case 'TOGGLE_SHOW_COMPLETED_TASKS':
       return { ...state, showCompletedTasks: !state.showCompletedTasks };
 
-    case 'TOGGLE_SHOW_COMPLETED_BLOCKS':
-      return { ...state, showCompletedBlocks: !state.showCompletedBlocks };
-
-    case 'ROLLOVER_TASKS': {
-      const idSet = new Set(action.taskIds);
+    case 'DAY_TRANSITION': {
+      const rolled = new Set(action.rolledIds);
+      const pruned = new Set(action.prunedIds);
       return {
         ...state,
-        tasks: state.tasks.map(t =>
-          idSet.has(t.id) ? { ...t, assignedDate: action.toDate, updatedAt: ts() } : t
-        ),
+        tasks: state.tasks
+          .filter(t => !pruned.has(t.id))
+          .map(t => rolled.has(t.id) ? { ...t, assignedDate: action.toDate, updatedAt: ts() } : t),
       };
     }
 
@@ -256,6 +273,7 @@ export function AppProvider({ children }) {
   const settingsReadyRef = useRef(false);
   const cachedTasksRef = useRef([]);
   const cachedTemplatesRef = useRef([]);
+  const lastTransitionDateRef = useRef(today());
   const [networkError, setNetworkError] = useState(null);
   const networkErrorTimerRef = useRef(null);
   const handleErrRef = useRef((e) => {
@@ -279,7 +297,7 @@ export function AppProvider({ children }) {
           id: genId(), title: action.title, notes: action.notes || '',
           completed: false, assignedDate: action.assignedDate || null,
           recurringTemplateId: action.recurringTemplateId || null,
-          sortIndex: s.tasks.length,
+          sortIndex: nextSortIndex(s.tasks),
           createdAt: ts(), updatedAt: ts(),
         };
         enriched = { ...action, task };
@@ -450,12 +468,13 @@ export function AppProvider({ children }) {
 
       case 'GENERATE_RECURRING_FOR_DATE': {
         if (s.generatedDates.includes(action.dateStr)) break; // reducer also guards; skip Firestore write
+        const base = nextSortIndex(s.tasks);
         const newTasks = s.recurringTemplates
           .filter(tmpl => shouldRecurOnDate(tmpl, action.dateStr))
           .map((tmpl, i) => ({
             id: genId(), title: tmpl.title, notes: tmpl.notes, completed: false,
             assignedDate: action.dateStr, recurringTemplateId: tmpl.id,
-            sortIndex: s.tasks.length + i,
+            sortIndex: base + i,
             createdAt: ts(), updatedAt: ts(),
           }));
         enriched = { ...action, newTasks };
@@ -473,6 +492,45 @@ export function AppProvider({ children }) {
     }
 
     baseDispatch(enriched);
+  }, [uid]);
+
+  // Roll incomplete dated tasks forward to today, and prune stale non-rolling
+  // recurring instances. Safe to call repeatedly — it no-ops when there's nothing to do.
+  const runDayTransition = useCallback((tasks, templates) => {
+    if (!uid) return;
+    const todayStr = today();
+    const templateMap = Object.fromEntries(templates.map(t => [t.id, t]));
+    const cutoff = dateDaysAgo(STALE_RECURRING_DAYS);
+
+    const toRoll = [];
+    const toPrune = [];
+    tasks.forEach(t => {
+      if (!t.assignedDate || t.assignedDate >= todayStr || t.completed) return;
+      if (!t.recurringTemplateId) { toRoll.push(t); return; }
+      const tmpl = templateMap[t.recurringTemplateId];
+      // No template means either an orphan or templates haven't loaded yet — leave it alone
+      // rather than risk deleting live data.
+      if (!tmpl) return;
+      if (ROLLOVER_TYPES.has(tmpl.recurrenceType)) { toRoll.push(t); return; }
+      if (t.assignedDate < cutoff) toPrune.push(t);
+    });
+
+    if (toRoll.length === 0 && toPrune.length === 0) return;
+
+    const nowTs = ts();
+    const batch = writeBatch(db);
+    toRoll.forEach(t =>
+      batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs })
+    );
+    toPrune.forEach(t => batch.delete(doc(db, 'users', uid, 'tasks', t.id)));
+    batch.commit().catch(handleErrRef.current);
+
+    baseDispatch({
+      type: 'DAY_TRANSITION',
+      rolledIds: toRoll.map(t => t.id),
+      prunedIds: toPrune.map(t => t.id),
+      toDate: todayStr,
+    });
   }, [uid]);
 
   // Subscribe to Firestore collections; migrate old plannerState doc if present
@@ -510,7 +568,6 @@ export function AppProvider({ children }) {
           calendarYear: old.calendarYear ?? now.getFullYear(),
           lastVisitDate: old.lastVisitDate ?? today(),
           showCompletedTasks: old.showCompletedTasks ?? false,
-          showCompletedBlocks: old.showCompletedBlocks ?? false,
           lastCompletedTask: old.lastCompletedTask ?? null,
         });
         batch.delete(doc(db, 'users', uid, 'data', 'plannerState'));
@@ -519,7 +576,6 @@ export function AppProvider({ children }) {
       }
 
       // Rollover coordination: wait for settings + tasks + templates first-fire
-      const ROLLOVER_TYPES = new Set(['weekly', 'biweekly', 'monthly']);
       let settingsFirstFired = false;
       let tasksFirstFired = false;
       let templatesFirstFired = false;
@@ -528,25 +584,17 @@ export function AppProvider({ children }) {
 
       const tryRollover = () => {
         if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired) return;
-        const todayStr = today();
-        const templateMap = Object.fromEntries(cachedTemplates.map(t => [t.id, t]));
-        const tasksToRoll = cachedTasks.filter(t => {
-          if (!t.assignedDate || t.assignedDate >= todayStr || t.completed) return false;
-          if (!t.recurringTemplateId) return true;
-          const tmpl = templateMap[t.recurringTemplateId];
-          return tmpl && ROLLOVER_TYPES.has(tmpl.recurrenceType);
-        });
-        if (tasksToRoll.length === 0) return;
-        const nowTs = ts();
-        const batch = writeBatch(db);
-        tasksToRoll.forEach(t => {
-          batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
-        });
-        batch.commit().catch(handleErrRef.current);
-        baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
+        lastTransitionDateRef.current = today();
+        runDayTransition(cachedTasks, cachedTemplates);
       };
 
-      // Real-time listeners for all three data collections
+      // A read failure (expired token, revoked permission, quota) otherwise surfaces as an
+      // unhandled rejection and the UI just silently stops updating.
+      const onReadError = (e) => {
+        if (!cancelled) handleErrRef.current(e);
+      };
+
+      // Real-time listeners for all data collections
       unsubs = [
         onSnapshot(collection(db, 'users', uid, 'tasks'), snap => {
           if (cancelled) return;
@@ -554,35 +602,34 @@ export function AppProvider({ children }) {
           cachedTasksRef.current = cachedTasks;
           baseDispatch({ type: 'SET_TASKS', tasks: cachedTasks });
           if (!tasksFirstFired) { tasksFirstFired = true; tryRollover(); }
-        }),
+        }, onReadError),
         onSnapshot(collection(db, 'users', uid, 'scheduledBlocks'), snap => {
           if (!cancelled)
             baseDispatch({ type: 'SET_SCHEDULED_BLOCKS', scheduledBlocks: snap.docs.map(d => d.data()) });
-        }),
+        }, onReadError),
         onSnapshot(collection(db, 'users', uid, 'recurringTemplates'), snap => {
           if (cancelled) return;
           cachedTemplates = snap.docs.map(d => d.data());
           cachedTemplatesRef.current = cachedTemplates;
           baseDispatch({ type: 'SET_RECURRING_TEMPLATES', recurringTemplates: cachedTemplates });
           if (!templatesFirstFired) { templatesFirstFired = true; tryRollover(); }
-        }),
+        }, onReadError),
         onSnapshot(collection(db, 'users', uid, 'notes'), snap => {
           if (!cancelled)
             baseDispatch({ type: 'SET_NOTES', notes: snap.docs.map(d => d.data()) });
-        }),
+        }, onReadError),
         onSnapshot(doc(db, 'users', uid, 'settings', 'data'), snap => {
           if (cancelled) return;
+          const isFirst = !settingsFirstFired;
           if (snap.exists()) {
-            baseDispatch({ type: 'SET_SETTINGS', settings: snap.data() });
+            baseDispatch({ type: 'SET_SETTINGS', settings: snap.data(), hydrate: isFirst });
           }
-          if (!settingsFirstFired) {
+          settingsReadyRef.current = true;
+          if (isFirst) {
             settingsFirstFired = true;
-            settingsReadyRef.current = true;
             tryRollover();
-          } else {
-            settingsReadyRef.current = true;
           }
-        }),
+        }, onReadError),
       ];
     };
 
@@ -592,47 +639,47 @@ export function AppProvider({ children }) {
       cancelled = true;
       unsubs.forEach(u => u());
     };
-  }, [uid]);
+  }, [uid, runDayTransition]);
 
-  // Midnight timer: if the app stays open overnight, roll over tasks and generate recurring at midnight
+  // Day transition: roll tasks over and generate recurring instances when the date changes.
+  // Fires on a midnight timer when the app stays open, and again whenever the tab/PWA regains
+  // visibility or focus — mobile browsers freeze long timers, so the timer alone is unreliable.
   useEffect(() => {
     if (!uid) return;
-    const ROLLOVER_TYPES_M = new Set(['weekly', 'biweekly', 'monthly']);
 
-    const runAtMidnight = () => {
+    let timer;
+
+    const runTransition = () => {
       const todayStr = today();
-      const tasks = cachedTasksRef.current;
-      const templates = cachedTemplatesRef.current;
-      const templateMap = Object.fromEntries(templates.map(t => [t.id, t]));
-
-      const tasksToRoll = tasks.filter(t => {
-        if (!t.assignedDate || t.assignedDate >= todayStr || t.completed) return false;
-        if (!t.recurringTemplateId) return true;
-        const tmpl = templateMap[t.recurringTemplateId];
-        return tmpl && ROLLOVER_TYPES_M.has(tmpl.recurrenceType);
-      });
-      if (tasksToRoll.length > 0) {
-        const nowTs = ts();
-        const batch = writeBatch(db);
-        tasksToRoll.forEach(t => {
-          batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs });
-        });
-        batch.commit().catch(handleErrRef.current);
-        baseDispatch({ type: 'ROLLOVER_TASKS', taskIds: tasksToRoll.map(t => t.id), toDate: todayStr });
-      }
-
+      lastTransitionDateRef.current = todayStr;
+      runDayTransition(cachedTasksRef.current, cachedTemplatesRef.current);
       dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: todayStr });
     };
 
     const schedule = () => {
-      const now = new Date();
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
-      return setTimeout(() => { runAtMidnight(); timer = schedule(); }, midnight - now);
+      const n = new Date();
+      const midnight = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 5);
+      timer = setTimeout(() => { runTransition(); schedule(); }, midnight - n);
+    };
+    schedule();
+
+    const onWake = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (lastTransitionDateRef.current === today()) return; // still the same day
+      clearTimeout(timer);
+      runTransition();
+      schedule(); // re-arm for the new day
     };
 
-    let timer = schedule();
-    return () => clearTimeout(timer);
-  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
+    };
+  }, [uid, runDayTransition, dispatch]);
 
   // Debounced save of navigation/UI settings (not covered by per-action writes)
   useEffect(() => {
@@ -643,7 +690,6 @@ export function AppProvider({ children }) {
         calendarYear: state.calendarYear,
         lastVisitDate: state.lastVisitDate,
         showCompletedTasks: state.showCompletedTasks,
-        showCompletedBlocks: state.showCompletedBlocks,
         lastCompletedTask: state.lastCompletedTask,
         currentPlannerDate: state.currentPlannerDate,
       }, { merge: true }).catch(handleErrRef.current);
@@ -655,7 +701,6 @@ export function AppProvider({ children }) {
     state.calendarYear,
     state.lastVisitDate,
     state.showCompletedTasks,
-    state.showCompletedBlocks,
     state.lastCompletedTask,
     state.currentPlannerDate,
   ]);

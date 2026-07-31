@@ -4,3 +4,7 @@ dist
 *.local
 
 .vercel
+
+# Firebase console scaffolding leftovers (contain project config)
+firebase config.txt
+firebase config.txt.bak

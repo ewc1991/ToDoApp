@@ -2,7 +2,7 @@ import React from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import {
   MONTH_NAMES, DAY_NAMES,
-  getDaysInMonth, getFirstDayOfMonth, makeDateStr, isToday, today
+  getDaysInMonth, getFirstDayOfMonth, makeDateStr, isToday, formatDisplayDate
 } from '../../utils/dateUtils.js'
 
 export default function CalendarView() {
@@ -42,8 +42,6 @@ export default function CalendarView() {
   for (let d = 1; cells.length < totalCells; d++) {
     cells.push({ day: d, dateStr: makeDateStr(nextYear, nextMonth + 1, d), currentMonth: false })
   }
-
-  const todayStr = today()
 
   const YEARS = []
   for (let y = year - 5; y <= year + 10; y++) YEARS.push(y)
@@ -89,13 +87,17 @@ export default function CalendarView() {
       </div>
 
       <div className="calendar-grid">
-        {cells.map((cell, i) => {
+        {cells.map(cell => {
           const hasTasks = taskDateSet.has(cell.dateStr)
           const selected = cell.dateStr === state.currentPlannerDate
           const isCurrentDay = isToday(cell.dateStr)
           return (
-            <div
+            <button
               key={cell.dateStr}
+              type="button"
+              disabled={!cell.currentMonth}
+              aria-current={isCurrentDay ? 'date' : undefined}
+              aria-label={formatDisplayDate(cell.dateStr) + (hasTasks ? ' — has tasks' : '')}
               className={[
                 'calendar-cell',
                 !cell.currentMonth ? 'other-month' : '',
@@ -108,7 +110,7 @@ export default function CalendarView() {
               {hasTasks && cell.currentMonth && (
                 <div className="calendar-dot-row"><div className="calendar-dot" /></div>
               )}
-            </div>
+            </button>
           )
         })}
       </div>

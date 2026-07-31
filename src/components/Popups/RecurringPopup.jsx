@@ -75,7 +75,15 @@ export default function RecurringPopup({ templateId, onClose }) {
   }
 
   const handleDelete = () => {
-    if (existing) dispatch({ type: 'DELETE_RECURRING_TEMPLATE', id: existing.id })
+    if (!existing) return onClose()
+    // Deleting a template cascades to every instance it ever generated, including
+    // completed history — say so before wiping months of records on one click.
+    const generated = state.tasks.filter(t => t.recurringTemplateId === existing.id).length
+    const detail = generated > 0
+      ? `\n\nThis will also delete ${generated} generated task${generated === 1 ? '' : 's'}, including completed ones.`
+      : ''
+    if (!window.confirm(`Delete "${existing.title}"?${detail}\n\nThis cannot be undone.`)) return
+    dispatch({ type: 'DELETE_RECURRING_TEMPLATE', id: existing.id })
     onClose()
   }
 
