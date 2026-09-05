@@ -18,29 +18,37 @@ import { timingSafeEqual } from 'node:crypto';
 const MAX_BODY = 10_000;
 const TOO_BIG = Symbol('too-big');
 
-// Rate limiting, best effort. Fluid Compute reuses instances, so a burst from one
-// source usually meets the same counter — but traffic spread across instances will
-// not. The secret is still the real gate; this caps what a leaked one can do before
-// it is rotated, and slows guessing.
 const WINDOW_MS = 60_000;
-const MAX_WRITES = 30;   // notes per minute per source
-const MAX_FAILURES = 10; // rejected secrets per minute per source
-const hits = new Map();
+const MAX_WRITES = 30; // notes per minute
 
-function withinLimit(key, limit) {
-  const now = Date.now();
-  const seen = (hits.get(key) || []).filter(t => now - t < WINDOW_MS);
-  seen.push(now);
-  hits.set(key, seen);
-  // Drop fully aged-out keys so a long-lived instance cannot grow the map forever.
-  if (hits.size > 500) {
-    for (const [k, v] of hits) if (!v.some(t => now - t < WINDOW_MS)) hits.delete(k);
-  }
-  return seen.length <= limit;
+// Sliding-window arithmetic, kept pure so it can be tested without Firestore.
+// Returns the state to store plus whether this request is allowed.
+export function nextWindow(prev, now, limit, windowMs = WINDOW_MS) {
+  const live = prev && now - prev.windowStart < windowMs;
+  const windowStart = live ? prev.windowStart : now;
+  const count = (live ? prev.count : 0) + 1;
+  return { windowStart, count, allowed: count <= limit };
 }
 
-const sourceOf = (req) =>
-  (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+// Counted in Firestore rather than in memory: instances are not shared, and a
+// module-level counter measurably never fires for traffic like this. Only
+// authenticated requests are counted — making an unauthenticated caller able to
+// drive database writes would be its own amplification bug.
+async function withinWriteLimit(uid) {
+  const ref = db().collection('users').doc(uid).collection('rateLimits').doc('notesWebhook');
+  try {
+    return await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const state = nextWindow(snap.exists ? snap.data() : null, Date.now(), MAX_WRITES);
+      tx.set(ref, { windowStart: state.windowStart, count: state.count });
+      return state.allowed;
+    });
+  } catch (err) {
+    // A limiter that cannot read its own counter must not take the endpoint down.
+    console.error('Rate limit check failed, allowing request:', err);
+    return true;
+  }
+}
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
@@ -185,24 +193,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const source = sourceOf(req);
-
   if (!secretMatches(presentedSecret(req), process.env.NOTES_WEBHOOK_SECRET)) {
-    if (!withinLimit('fail:' + source, MAX_FAILURES)) {
-      return res.status(429).json({ error: 'Too many failed attempts. Try again in a minute.' });
-    }
     return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (!withinLimit('ok:' + source, MAX_WRITES)) {
-    res.setHeader('Retry-After', '60');
-    return res.status(429).json({ error: 'At most ' + MAX_WRITES + ' notes per minute.' });
   }
 
   const uid = process.env.NOTES_USER_UID;
   if (!uid) {
     console.error('NOTES_USER_UID is not set');
     return res.status(500).json({ error: 'Server misconfigured' });
+  }
+
+  if (!(await withinWriteLimit(uid))) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ error: `At most ${MAX_WRITES} notes per minute.` });
   }
 
   const extracted = await extractBody(req);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 
 export default function ToDoPopup({ taskId, date, onClose }) {
@@ -10,6 +11,7 @@ export default function ToDoPopup({ taskId, date, onClose }) {
   const [notes, setNotes] = useState(existing?.notes || '')
   const [assignedDate, setAssignedDate] = useState(existing?.assignedDate || date || '')
   const titleRef = useRef(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
 
@@ -23,9 +25,7 @@ export default function ToDoPopup({ taskId, date, onClose }) {
     onClose()
   }
 
-  const handleDelete = () => {
-    if (!existing) return onClose()
-    if (!window.confirm(`Delete "${existing.title}"? This cannot be undone.`)) return
+  const confirmDelete = () => {
     dispatch({ type: 'DELETE_TASK', id: existing.id })
     onClose()
   }
@@ -37,12 +37,13 @@ export default function ToDoPopup({ taskId, date, onClose }) {
   }
 
   return (
+    <>
     <Modal
       title={existing ? 'Edit Task' : 'New Task'}
       onClose={onClose}
       footer={
         <>
-          {existing && <button className="btn btn-danger" onClick={handleDelete}>Delete</button>}
+          {existing && <button className="btn btn-danger" onClick={() => setConfirming(true)}>Delete</button>}
           <div style={{ flex: 1 }} />
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave}>Save</button>
@@ -62,5 +63,15 @@ export default function ToDoPopup({ taskId, date, onClose }) {
         <input type="date" className="form-input" value={assignedDate} onChange={e => setAssignedDate(e.target.value)} />
       </div>
     </Modal>
+    {confirming && (
+      <ConfirmDialog
+        title="Delete task"
+        message={`Delete "${existing.title}"?`}
+        detail={"This cannot be undone."}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirming(false)}
+      />
+    )}
+    </>
   )
 }

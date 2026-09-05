@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { useApp } from './store/AppContext.jsx'
 import { useAuth } from './store/AuthContext.jsx'
-import { isTypingTarget } from './utils/hotkeys.js'
+import { isTypingTarget, isModalOpen } from './utils/hotkeys.js'
 import Header from './components/Header.jsx'
 import CalendarPage from './components/Calendar/CalendarPage.jsx'
 import ToDoPage from './components/ToDo/ToDoPage.jsx'
@@ -52,7 +52,9 @@ export default function App() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (isTypingTarget(e.target)) return
+      // A dialog on screen owns the keyboard: undo used to fire from a modal
+      // button and un-complete a task hidden behind it.
+      if (isTypingTarget(e.target) || isModalOpen()) return
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault()
         dispatch({ type: 'UNDO_LAST_COMPLETION' })

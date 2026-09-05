@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractBody } from './notes.js'
+import { extractBody, nextWindow } from './notes.js'
 
 // Callers we don't control send the note text every which way. Vercel only
 // pre-parses Content-Types it recognises, so the handler has to cope with
@@ -152,5 +152,46 @@ describe('oversized bodies', () => {
       async *[Symbol.asyncIterator]() { yield Buffer.from('a normal note') },
     }
     expect(await extractBody(req)).toBe('a normal note')
+  })
+})
+
+describe('nextWindow', () => {
+  const LIMIT = 3
+  const WINDOW = 60_000
+
+  it('opens a window on the first request', () => {
+    expect(nextWindow(null, 1000, LIMIT, WINDOW)).toEqual({ windowStart: 1000, count: 1, allowed: true })
+  })
+
+  it('counts up within the window', () => {
+    let state = nextWindow(null, 1000, LIMIT, WINDOW)
+    for (const expected of [2, 3]) {
+      state = nextWindow(state, 1000, LIMIT, WINDOW)
+      expect(state.count).toBe(expected)
+      expect(state.allowed).toBe(true)
+    }
+  })
+
+  it('refuses once the limit is passed', () => {
+    let state = null
+    for (let i = 0; i < LIMIT; i++) state = nextWindow(state, 1000, LIMIT, WINDOW)
+    expect(nextWindow(state, 1000, LIMIT, WINDOW).allowed).toBe(false)
+  })
+
+  it('starts a fresh window once the old one has aged out', () => {
+    let state = null
+    for (let i = 0; i < LIMIT + 2; i++) state = nextWindow(state, 1000, LIMIT, WINDOW)
+    expect(state.allowed).toBe(false)
+
+    const later = nextWindow(state, 1000 + WINDOW, LIMIT, WINDOW)
+    expect(later).toEqual({ windowStart: 1000 + WINDOW, count: 1, allowed: true })
+  })
+
+  it('keeps the window anchored to its start, not to the last request', () => {
+    // A steady trickle must not roll the window forward and evade the limit.
+    let state = nextWindow(null, 0, LIMIT, WINDOW)
+    state = nextWindow(state, 30_000, LIMIT, WINDOW)
+    expect(state.windowStart).toBe(0)
+    expect(state.count).toBe(2)
   })
 })

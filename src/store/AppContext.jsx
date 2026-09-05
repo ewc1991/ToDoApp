@@ -13,7 +13,6 @@ import { reorderPlan } from '../utils/taskUtils';
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
 
-const now = new Date();
 
 // Recurrence types whose incomplete instances roll forward to today.
 // daily/weekdays/weekends deliberately don't roll — a missed day is just missed.
@@ -35,7 +34,12 @@ const dateDaysAgo = (n) => {
 const nextSortIndex = (tasks) =>
   tasks.reduce((max, t) => Math.max(max, t.sortIndex ?? -1), -1) + 1;
 
-const INITIAL_STATE = {
+// Built fresh each time rather than frozen at module load: a PWA left open
+// across midnight, or across a month boundary, would otherwise reset to the
+// month it was first loaded in.
+const makeInitialState = () => {
+  const now = new Date();
+  return {
   tasks: [],
   scheduledBlocks: [],
   recurringTemplates: [],
@@ -49,6 +53,7 @@ const INITIAL_STATE = {
   lastVisitDate: today(),
   lastCompletedTask: null,
   showCompletedTasks: false,
+  };
 };
 
 // Merge settings from Firestore into current state, preserving client-only navigation state.
@@ -73,7 +78,7 @@ function reducer(state, action) {
 
     // ── Firestore load actions ─────────────────────────────
     case 'RESET':
-      return INITIAL_STATE;
+      return makeInitialState();
 
     case 'SET_TASKS': {
       const sorted = [...action.tasks].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
@@ -269,7 +274,7 @@ function reducer(state, action) {
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [state, baseDispatch] = useReducer(reducer, INITIAL_STATE);
+  const [state, baseDispatch] = useReducer(reducer, undefined, makeInitialState);
   const { user } = useAuth();
   const uid = user?.uid ?? null;
   const stateRef = useRef(state);
@@ -590,8 +595,8 @@ export function AppProvider({ children }) {
         );
         batch.set(doc(db, 'users', uid, 'settings', 'data'), {
           generatedDates: old.generatedDates || [],
-          calendarMonth: old.calendarMonth ?? now.getMonth(),
-          calendarYear: old.calendarYear ?? now.getFullYear(),
+          calendarMonth: old.calendarMonth ?? new Date().getMonth(),
+          calendarYear: old.calendarYear ?? new Date().getFullYear(),
           lastVisitDate: old.lastVisitDate ?? today(),
           showCompletedTasks: old.showCompletedTasks ?? false,
           lastCompletedTask: old.lastCompletedTask ?? null,

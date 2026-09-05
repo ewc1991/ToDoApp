@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { DAY_NAMES } from '../../utils/dateUtils.js'
 
@@ -37,6 +38,7 @@ export default function RecurringPopup({ templateId, onClose }) {
   const [startDate,             setStartDate]             = useState(existing?.startDate || '')
   const [endDate,               setEndDate]               = useState(existing?.endDate || '')
   const titleRef = useRef(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   useEffect(() => { setTimeout(() => titleRef.current?.focus(), 50) }, [])
 
@@ -80,9 +82,12 @@ export default function RecurringPopup({ templateId, onClose }) {
     // completed history — say so before wiping months of records on one click.
     const generated = state.tasks.filter(t => t.recurringTemplateId === existing.id).length
     const detail = generated > 0
-      ? `\n\nThis will also delete ${generated} generated task${generated === 1 ? '' : 's'}, including completed ones.`
-      : ''
-    if (!window.confirm(`Delete "${existing.title}"?${detail}\n\nThis cannot be undone.`)) return
+      ? `This also deletes ${generated} generated task${generated === 1 ? '' : 's'}, including completed ones. This cannot be undone.`
+      : 'This cannot be undone.'
+    setPendingDelete(detail)
+  }
+
+  const confirmDelete = () => {
     dispatch({ type: 'DELETE_RECURRING_TEMPLATE', id: existing.id })
     onClose()
   }
@@ -94,6 +99,7 @@ export default function RecurringPopup({ templateId, onClose }) {
   }
 
   return (
+    <>
     <Modal
       title={existing ? 'Edit Recurring Task' : 'New Recurring Task'}
       onClose={onClose}
@@ -242,5 +248,15 @@ export default function RecurringPopup({ templateId, onClose }) {
         </div>
       </div>
     </Modal>
+    {pendingDelete && (
+      <ConfirmDialog
+        title="Delete recurring task"
+        message={`Delete "${existing.title}"?`}
+        detail={pendingDelete}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+    )}
+    </>
   )
 }

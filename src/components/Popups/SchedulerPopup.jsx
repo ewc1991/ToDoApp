@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import MicIcon from '../MicIcon.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { getNearestHalfHour, endAfter, minutesToTime, timeToMinutes, blockEndMinutes, LAST_MINUTE } from '../../utils/timeUtils.js'
@@ -22,8 +23,9 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const [endTime, setEndTime] = useState(defaultEnd)
   const [blockDate, setBlockDate] = useState(existing?.date || date)
   const titleRef = useRef(null)
+  const [confirming, setConfirming] = useState(false)
 
-  const { recording, toggle: toggleRecording } = useSpeechInput(
+  const { recording, toggle: toggleRecording, error: speechError } = useSpeechInput(
     text => setTitle(prev => appendTranscript(prev, text))
   )
 
@@ -59,9 +61,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
     onClose()
   }
 
-  const handleDelete = () => {
-    if (!existing) return onClose()
-    if (!window.confirm(`Delete the time block "${existing.title}"? This cannot be undone.`)) return
+  const confirmDelete = () => {
     dispatch({ type: 'DELETE_SCHEDULED_BLOCK', id: existing.id })
     onClose()
   }
@@ -78,12 +78,13 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const timeValid = startTime && endTime && timeToMinutes(endTime) > timeToMinutes(startTime)
 
   return (
+    <>
     <Modal
       title={existing ? 'Edit Time Block' : 'Schedule Task'}
       onClose={onClose}
       footer={
         <>
-          {existing && <button className="btn btn-danger" onClick={handleDelete}>Delete</button>}
+          {existing && <button className="btn btn-danger" onClick={() => setConfirming(true)}>Delete</button>}
           <div style={{ flex: 1 }} />
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={!timeValid}>Save</button>
@@ -106,6 +107,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
         </label>
         <input ref={titleRef} className="form-input" placeholder="Task title" value={title} onChange={e => setTitle(e.target.value)} />
         {recording && <span className="dictate-hint">● Listening… speak the block name</span>}
+        {speechError && <span className="dictate-error">{speechError}</span>}
       </div>
       {existing && (
         <div className="form-group">
@@ -131,5 +133,15 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
         <textarea className="form-input" placeholder="Optional notes…" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
       </div>
     </Modal>
+    {confirming && (
+      <ConfirmDialog
+        title="Delete time block"
+        message={`Delete the time block "${existing.title}"?`}
+        detail={"This cannot be undone."}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirming(false)}
+      />
+    )}
+    </>
   )
 }

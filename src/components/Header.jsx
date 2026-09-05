@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import ConfirmDialog from './Popups/ConfirmDialog.jsx'
 import { useApp } from '../store/AppContext.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 
@@ -30,7 +31,6 @@ function formatClock(date) {
 }
 
 async function hardRefresh() {
-  if (!window.confirm('Clear app cache and reload?')) return
   if ('serviceWorker' in navigator) {
     const regs = await navigator.serviceWorker.getRegistrations()
     await Promise.all(regs.map(r => r.unregister()))
@@ -46,6 +46,7 @@ export default function Header() {
   const { state, dispatch } = useApp()
   const { user, logOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmingRefresh, setConfirmingRefresh] = useState(false)
   const menuRef = useRef(null)
   const now = useNow()
   const clock = formatClock(now)
@@ -96,7 +97,7 @@ export default function Header() {
             <div className="header-dropdown-divider" />
             <button
               className="header-dropdown-item"
-              onClick={hardRefresh}
+              onClick={() => { setConfirmingRefresh(true); setMenuOpen(false) }}
             >
               Refresh App
             </button>
@@ -110,6 +111,16 @@ export default function Header() {
           </div>
         )}
       </div>
+      {confirmingRefresh && (
+        <ConfirmDialog
+          title="Refresh app"
+          message="Clear the app cache and reload?"
+          detail="Your data is safe — this only clears files stored on this device."
+          confirmLabel="Refresh"
+          onConfirm={hardRefresh}
+          onCancel={() => setConfirmingRefresh(false)}
+        />
+      )}
     </header>
   )
 }

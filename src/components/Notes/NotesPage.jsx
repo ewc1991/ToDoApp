@@ -5,6 +5,7 @@ import { noteToTask } from '../../utils/noteUtils.js'
 import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 import MicIcon from '../MicIcon.jsx'
 import NoteModal from './NoteModal.jsx'
+import ConfirmDialog from '../Popups/ConfirmDialog.jsx'
 
 function formatNoteDate(isoStr) {
   const d = new Date(isoStr)
@@ -21,7 +22,7 @@ export default function NotesPage() {
   const longPressed = useRef(false)
   const bodyRef = useRef(null)
 
-  const { recording, toggle: toggleSpeech } = useSpeechInput(
+  const { recording, toggle: toggleSpeech, error: speechError } = useSpeechInput(
     text => setBody(prev => appendTranscript(prev, text))
   )
 
@@ -33,12 +34,6 @@ export default function NotesPage() {
   useEffect(() => {
     const handler = (e) => {
       if (shouldIgnoreHotkey(e)) return
-      if (e.key === 'Escape' && actionId) {
-        e.preventDefault()
-        setActionId(null)
-        return
-      }
-      if (actionId) return
       if (e.key === 'n') {
         e.preventDefault()
         bodyRef.current?.focus()
@@ -46,7 +41,7 @@ export default function NotesPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [actionId])
+  }, [])
 
   // Press and hold a card (or right-click) to get at delete without having to
   // open the note first.
@@ -122,6 +117,7 @@ export default function NotesPage() {
               <MicIcon />
             </button>
           </div>
+          {speechError && <span className="dictate-error">{speechError}</span>}
           <div className="notes-composer-footer">
             <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -181,32 +177,16 @@ export default function NotesPage() {
       )}
 
       {actionId && (
-        <div className="modal-backdrop" onClick={() => setActionId(null)}>
-          <div
-            className="note-actions"
-            role="dialog"
-            aria-label="Note actions"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="note-actions-preview">
-              {notes.find(n => n.id === actionId)?.body}
-            </div>
-            <div className="note-actions-buttons">
-              <button
-                className="btn btn-danger"
-                onClick={() => {
-                  dispatch({ type: 'DELETE_NOTE', id: actionId })
-                  setActionId(null)
-                }}
-              >
-                Delete note
-              </button>
-              <button className="btn btn-secondary" onClick={() => setActionId(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete note"
+          message={notes.find(n => n.id === actionId)?.body}
+          detail="This cannot be undone."
+          onConfirm={() => {
+            dispatch({ type: 'DELETE_NOTE', id: actionId })
+            setActionId(null)
+          }}
+          onCancel={() => setActionId(null)}
+        />
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import { formatShortDate } from '../../utils/dateUtils.js'
 import RecurringPopup from '../Popups/RecurringPopup.jsx'
 
 const RECUR_LABELS = {
@@ -23,18 +24,29 @@ function monthlyDayLabel(tmpl) {
   return tmpl.dayOfMonth ? `day ${tmpl.dayOfMonth}` : null
 }
 
+// Intervals longer than one period are counted from an anchor — the start date
+// if one was given, otherwise the day the template was created. Two entries can
+// read identically and still fire on alternating weeks, so name the anchor.
+function anchorLabel(tmpl) {
+  const anchor = tmpl.startDate || tmpl.createdAt?.slice(0, 10)
+  return anchor ? ' from ' + formatShortDate(anchor) : ''
+}
+
 function scheduleLabel(tmpl) {
   if (tmpl.recurrenceType === 'custom') {
     const n    = tmpl.customInterval ?? 1
     const unit = tmpl.customUnit ?? 'weeks'
     const base = `Every ${n} ${n === 1 ? unit.replace(/s$/, '') : unit}`
-    if (unit === 'weeks' && tmpl.dayOfWeek != null) return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}`
+    const anchor = n > 1 ? anchorLabel(tmpl) : ''
+    if (unit === 'weeks' && tmpl.dayOfWeek != null) return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}${anchor}`
     const dayLbl = monthlyDayLabel(tmpl)
-    return dayLbl ? `${base} on ${dayLbl}` : base
+    return dayLbl ? `${base} on ${dayLbl}${anchor}` : base + anchor
   }
   const base = RECUR_LABELS[tmpl.recurrenceType] || tmpl.recurrenceType
   if ((tmpl.recurrenceType === 'weekly' || tmpl.recurrenceType === 'biweekly') && tmpl.dayOfWeek != null) {
-    return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}`
+    // Biweekly is anchored the same way, so it is ambiguous in the same way.
+    const anchor = tmpl.recurrenceType === 'biweekly' ? anchorLabel(tmpl) : ''
+    return `${base} on ${DAY_SHORT[tmpl.dayOfWeek]}${anchor}`
   }
   if (tmpl.recurrenceType === 'monthly') {
     const dayLbl = monthlyDayLabel(tmpl)

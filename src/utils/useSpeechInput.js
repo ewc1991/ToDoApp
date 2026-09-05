@@ -13,6 +13,9 @@ export const appendTranscript = (prev, text) => (prev ? `${prev} ${text}` : text
 // time-block scheduler. `onTranscript` is called with each final phrase.
 export function useSpeechInput(onTranscript) {
   const [recording, setRecording] = useState(false);
+  // Reported inline by the caller. alert() blocked the event loop and looked
+  // like a different application inside an installed PWA.
+  const [error, setError] = useState('');
   const recognitionRef = useRef(null);
 
   // Held in a ref so the recognition handlers never close over a stale setter.
@@ -31,9 +34,10 @@ export function useSpeechInput(onTranscript) {
 
   const toggle = useCallback(() => {
     if (!SR) {
-      alert('Voice input is not supported in this browser. Try Chrome or Edge.');
+      setError('Voice input needs Chrome or Edge. You can still type the text.');
       return;
     }
+    setError('');
     if (recording) {
       recognitionRef.current?.stop();
       setRecording(false);
@@ -56,7 +60,9 @@ export function useSpeechInput(onTranscript) {
     recognition.onerror = (e) => {
       setRecording(false);
       if (e.error === 'not-allowed') {
-        alert('Microphone access was denied. Please allow it in your browser settings.');
+        setError('Microphone access was blocked. Allow it in your browser settings, then try again.');
+      } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        setError('Dictation stopped unexpectedly. Try again.');
       }
     };
     recognition.start();
@@ -64,5 +70,5 @@ export function useSpeechInput(onTranscript) {
     setRecording(true);
   }, [recording]);
 
-  return { supported: speechSupported, recording, toggle };
+  return { supported: speechSupported, recording, toggle, error };
 }
