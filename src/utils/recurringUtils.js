@@ -44,8 +44,12 @@ export const shouldRecurOnDate = (template, dateStr) => {
       const unit     = template.customUnit ?? 'weeks';
       if (unit === 'weeks') {
         if (dow !== (template.dayOfWeek ?? 0)) return false;
-        if (!template.startDate || interval <= 1) return true;
-        const [sy, sm, sd] = template.startDate.split('-').map(Number);
+        if (interval <= 1) return true;
+        // startDate is optional, so anchor to createdAt when it is missing —
+        // otherwise the interval is ignored and this fires every week.
+        const anchorStr = template.startDate || template.createdAt?.slice(0, 10);
+        if (!anchorStr) return true;
+        const [sy, sm, sd] = anchorStr.split('-').map(Number);
         const anchorDate = new Date(sy, sm - 1, sd);
         const skip = (7 + (template.dayOfWeek ?? 0) - anchorDate.getDay()) % 7;
         const anchor = new Date(anchorDate); anchor.setDate(anchorDate.getDate() + skip);
@@ -54,10 +58,11 @@ export const shouldRecurOnDate = (template, dateStr) => {
         return Math.floor(diffDays / 7) % interval === 0;
       } else { // months
         let monthMatches;
-        if (!template.startDate || interval <= 1) {
+        const anchorStr = template.startDate || template.createdAt?.slice(0, 10);
+        if (!anchorStr || interval <= 1) {
           monthMatches = true;
         } else {
-          const [sy, sm] = template.startDate.split('-').map(Number);
+          const [sy, sm] = anchorStr.split('-').map(Number);
           const mDiff    = (y - sy) * 12 + (m - sm);
           monthMatches   = mDiff >= 0 && mDiff % interval === 0;
         }
@@ -70,4 +75,16 @@ export const shouldRecurOnDate = (template, dateStr) => {
     }
     default: return false;
   }
+};
+
+// Templates that owe an instance on dateStr. Skipping templates that already
+// have one makes generation safe to re-run for a date — needed because adding
+// a template has to reopen dates that were already generated without it.
+export const templatesNeedingInstance = (templates, tasks, dateStr) => {
+  const already = new Set(
+    tasks
+      .filter(t => t.assignedDate === dateStr && t.recurringTemplateId)
+      .map(t => t.recurringTemplateId)
+  );
+  return templates.filter(t => !already.has(t.id) && shouldRecurOnDate(t, dateStr));
 };

@@ -7,7 +7,7 @@ import {
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { today, formatDate } from '../utils/dateUtils';
-import { shouldRecurOnDate } from '../utils/recurringUtils';
+import { templatesNeedingInstance } from '../utils/recurringUtils';
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
@@ -16,7 +16,9 @@ const now = new Date();
 
 // Recurrence types whose incomplete instances roll forward to today.
 // daily/weekdays/weekends deliberately don't roll — a missed day is just missed.
-const ROLLOVER_TYPES = new Set(['weekly', 'biweekly', 'monthly']);
+// 'custom' does roll: it spans weeks or months, so an instance left undone
+// would otherwise be pruned before its next occurrence ever came round.
+const ROLLOVER_TYPES = new Set(['weekly', 'biweekly', 'monthly', 'custom']);
 // Non-rolling recurring instances are deleted once older than this, so they
 // don't accumulate in Firestore (and in memory) forever.
 const STALE_RECURRING_DAYS = 14;
@@ -192,7 +194,11 @@ function reducer(state, action) {
 
     // ── Recurring templates ─────────────────────────────────
     case 'ADD_RECURRING_TEMPLATE':
-      return { ...state, recurringTemplates: [...state.recurringTemplates, action.template] };
+      return {
+        ...state,
+        recurringTemplates: [...state.recurringTemplates, action.template],
+        generatedDates: action.generatedDates ?? state.generatedDates,
+      };
 
     case 'UPDATE_RECURRING_TEMPLATE':
       return {
@@ -200,6 +206,7 @@ function reducer(state, action) {
         recurringTemplates: state.recurringTemplates.map(t =>
           t.id === action.id ? { ...t, ...action.updates, updatedAt: ts() } : t
         ),
+        generatedDates: action.generatedDates ?? state.generatedDates,
       };
 
     case 'DELETE_RECURRING_TEMPLATE':
@@ -424,6 +431,19 @@ export function AppProvider({ children }) {
         };
         enriched = { ...action, template };
         if (uid) setDoc(doc(db, 'users', uid, 'recurringTemplates', template.id), template).catch(handleErrRef.current);
+        // Every date already visited was stamped as generated, and that stamp is
+        // what stops it being generated again — so a template added today would
+        // never appear on any of them. Drop the stamps from today forward; past
+        // days keep theirs so history is not rewritten. Generation itself skips
+        // templates that already have an instance, so nothing duplicates.
+        const keptDates = s.generatedDates.filter(d => d < today());
+        if (keptDates.length !== s.generatedDates.length) {
+          enriched = { ...enriched, generatedDates: keptDates };
+          if (uid) {
+            setDoc(doc(db, 'users', uid, 'settings', 'data'),
+              { generatedDates: keptDates }, { merge: true }).catch(handleErrRef.current);
+          }
+        }
         break;
       }
 
@@ -431,6 +451,19 @@ export function AppProvider({ children }) {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
         if (uid) updateDoc(doc(db, 'users', uid, 'recurringTemplates', action.id), updates).catch(handleErrRef.current);
+        // Every date already visited was stamped as generated, and that stamp is
+        // what stops it being generated again — so a template added today would
+        // never appear on any of them. Drop the stamps from today forward; past
+        // days keep theirs so history is not rewritten. Generation itself skips
+        // templates that already have an instance, so nothing duplicates.
+        const keptDates = s.generatedDates.filter(d => d < today());
+        if (keptDates.length !== s.generatedDates.length) {
+          enriched = { ...enriched, generatedDates: keptDates };
+          if (uid) {
+            setDoc(doc(db, 'users', uid, 'settings', 'data'),
+              { generatedDates: keptDates }, { merge: true }).catch(handleErrRef.current);
+          }
+        }
         break;
       }
 
@@ -469,8 +502,7 @@ export function AppProvider({ children }) {
       case 'GENERATE_RECURRING_FOR_DATE': {
         if (s.generatedDates.includes(action.dateStr)) break; // reducer also guards; skip Firestore write
         const base = nextSortIndex(s.tasks);
-        const newTasks = s.recurringTemplates
-          .filter(tmpl => shouldRecurOnDate(tmpl, action.dateStr))
+        const newTasks = templatesNeedingInstance(s.recurringTemplates, s.tasks, action.dateStr)
           .map((tmpl, i) => ({
             id: genId(), title: tmpl.title, notes: tmpl.notes, completed: false,
             assignedDate: action.dateStr, recurringTemplateId: tmpl.id,

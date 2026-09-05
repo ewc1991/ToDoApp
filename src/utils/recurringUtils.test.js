@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { shouldRecurOnDate } from './recurringUtils.js'
+import { shouldRecurOnDate, templatesNeedingInstance } from './recurringUtils.js'
 
 // Reference calendar — March 2026 starts on a Sunday:
 //   Sun  1  8 15 22 29
@@ -154,5 +154,70 @@ describe('custom intervals', () => {
       startDate: '2026-03-10',
     })
     expect(shouldRecurOnDate(tmpl, '2026-01-10')).toBe(false)
+  })
+})
+
+describe('custom intervals with no start date', () => {
+  // startDate is optional in the popup. Without one the interval used to be
+  // ignored entirely, so "every 2 weeks" fired every week.
+  it('anchors a weekly interval to createdAt', () => {
+    const tmpl = t({
+      recurrenceType: 'custom',
+      customUnit: 'weeks',
+      customInterval: 2,
+      dayOfWeek: 1,
+      startDate: null,
+      createdAt: '2026-03-02T09:00:00.000Z',
+    })
+    expect(MON.map(d => shouldRecurOnDate(tmpl, d))).toEqual([true, false, true, false, true])
+  })
+
+  it('anchors a monthly interval to createdAt', () => {
+    const tmpl = t({
+      recurrenceType: 'custom',
+      customUnit: 'months',
+      customInterval: 3,
+      monthlyMode: 'dayOfMonth',
+      dayOfMonth: 10,
+      startDate: null,
+      createdAt: '2026-03-10T09:00:00.000Z',
+    })
+    expect(shouldRecurOnDate(tmpl, '2026-03-10')).toBe(true)
+    expect(shouldRecurOnDate(tmpl, '2026-04-10')).toBe(false)
+    expect(shouldRecurOnDate(tmpl, '2026-06-10')).toBe(true)
+  })
+
+  it('still fires every occurrence when the interval is 1', () => {
+    const tmpl = t({
+      recurrenceType: 'custom',
+      customUnit: 'weeks',
+      customInterval: 1,
+      dayOfWeek: 1,
+      startDate: null,
+      createdAt: '2026-03-02T09:00:00.000Z',
+    })
+    expect(MON.map(d => shouldRecurOnDate(tmpl, d))).toEqual([true, true, true, true, true])
+  })
+})
+
+describe('templatesNeedingInstance', () => {
+  const daily = { id: 'a', recurrenceType: 'daily' }
+  const mondays = { id: 'b', recurrenceType: 'weekly', dayOfWeek: 1 }
+
+  it('returns the templates due on that date', () => {
+    const got = templatesNeedingInstance([daily, mondays], [], '2026-03-02')
+    expect(got.map(x => x.id)).toEqual(['a', 'b'])
+  })
+
+  it('skips templates that already have an instance on that date', () => {
+    const tasks = [{ id: 't1', assignedDate: '2026-03-02', recurringTemplateId: 'a' }]
+    const got = templatesNeedingInstance([daily, mondays], tasks, '2026-03-02')
+    expect(got.map(x => x.id)).toEqual(['b'])
+  })
+
+  it('ignores instances belonging to another date', () => {
+    const tasks = [{ id: 't1', assignedDate: '2026-03-09', recurringTemplateId: 'a' }]
+    const got = templatesNeedingInstance([daily], tasks, '2026-03-02')
+    expect(got.map(x => x.id)).toEqual(['a'])
   })
 })
