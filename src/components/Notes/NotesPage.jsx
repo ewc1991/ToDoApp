@@ -16,6 +16,9 @@ export default function NotesPage() {
   const [body, setBody] = useState('')
   const [date, setDate] = useState('')
   const [editId, setEditId] = useState(null)
+  const [actionId, setActionId] = useState(null)
+  const pressTimer = useRef(null)
+  const longPressed = useRef(false)
   const bodyRef = useRef(null)
 
   const { recording, toggle: toggleSpeech } = useSpeechInput(
@@ -30,6 +33,12 @@ export default function NotesPage() {
   useEffect(() => {
     const handler = (e) => {
       if (shouldIgnoreHotkey(e)) return
+      if (e.key === 'Escape' && actionId) {
+        e.preventDefault()
+        setActionId(null)
+        return
+      }
+      if (actionId) return
       if (e.key === 'n') {
         e.preventDefault()
         bodyRef.current?.focus()
@@ -37,7 +46,29 @@ export default function NotesPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [actionId])
+
+  // Press and hold a card (or right-click) to get at delete without having to
+  // open the note first.
+  const startPress = (id) => {
+    longPressed.current = false
+    clearTimeout(pressTimer.current)
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true
+      setActionId(id)
+      navigator.vibrate?.(12)
+    }, 500)
+  }
+  const cancelPress = () => clearTimeout(pressTimer.current)
+
+  // A long press ends in a click too; swallow that one so the note does not
+  // also open behind the sheet.
+  const openNote = (id) => {
+    if (longPressed.current) { longPressed.current = false; return }
+    setEditId(id)
+  }
+
+  useEffect(() => () => clearTimeout(pressTimer.current), [])
 
   const handleAdd = () => {
     const trimmed = body.trim()
@@ -126,7 +157,17 @@ export default function NotesPage() {
         ) : (
           <div className="notes-grid">
             {notes.map(note => (
-              <button key={note.id} type="button" className="note-card" onClick={() => setEditId(note.id)}>
+              <button
+                key={note.id}
+                type="button"
+                className="note-card"
+                onClick={() => openNote(note.id)}
+                onTouchStart={() => startPress(note.id)}
+                onTouchEnd={cancelPress}
+                onTouchMove={cancelPress}
+                onTouchCancel={cancelPress}
+                onContextMenu={e => { e.preventDefault(); setActionId(note.id) }}
+              >
                 {note.body && <div className="note-card-body">{note.body}</div>}
                 <div className="note-card-date">{formatNoteDate(note.createdAt)}</div>
               </button>
@@ -137,6 +178,35 @@ export default function NotesPage() {
 
       {editId && (
         <NoteModal noteId={editId} onClose={() => setEditId(null)} />
+      )}
+
+      {actionId && (
+        <div className="modal-backdrop" onClick={() => setActionId(null)}>
+          <div
+            className="note-actions"
+            role="dialog"
+            aria-label="Note actions"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="note-actions-preview">
+              {notes.find(n => n.id === actionId)?.body}
+            </div>
+            <div className="note-actions-buttons">
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  dispatch({ type: 'DELETE_NOTE', id: actionId })
+                  setActionId(null)
+                }}
+              >
+                Delete note
+              </button>
+              <button className="btn btn-secondary" onClick={() => setActionId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
