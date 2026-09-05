@@ -4,6 +4,9 @@
 // callers. It writes the exact shape ADD_NOTE writes in AppContext, so the
 // onSnapshot listener on users/{uid}/notes picks it up live in an open tab.
 //
+// The note text is read from JSON, form-encoded, or raw-text bodies, under any
+// of the keys in BODY_KEYS, because callers vary in what they can send.
+//
 // Env (set in Vercel → Settings → Environment Variables):
 //   FIREBASE_SERVICE_ACCOUNT  service-account JSON, pasted whole
 //   NOTES_WEBHOOK_SECRET      shared secret callers send as a bearer token
@@ -40,15 +43,58 @@ function presentedSecret(req) {
   return (req.headers['x-webhook-secret'] || '').trim();
 }
 
-// Accepts {body|text|note} as JSON, or a raw text/plain body.
-function extractBody(payload) {
-  if (typeof payload === 'string') return payload;
-  if (payload && typeof payload === 'object') {
-    for (const key of ['body', 'text', 'note']) {
-      if (typeof payload[key] === 'string') return payload[key];
-    }
+const BODY_KEYS = ['body', 'text', 'note', 'content', 'message'];
+
+function fromObject(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const key of BODY_KEYS) {
+    if (typeof obj[key] === 'string' && obj[key].trim()) return obj[key];
   }
   return '';
+}
+
+// Vercel only pre-parses bodies whose Content-Type it recognises; anything else
+// arrives as a Buffer, or not at all. Callers we do not control get all of it
+// wrong in different ways, so unwrap every layer we might be handed.
+async function readRawBody(req) {
+  try {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    return Buffer.concat(chunks).toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+export async function extractBody(req) {
+  let payload = req.body;
+  if (Buffer.isBuffer(payload)) payload = payload.toString('utf8');
+  if (payload === undefined || payload === null || payload === '') {
+    payload = await readRawBody(req);
+  }
+
+  if (payload && typeof payload === 'object') return fromObject(payload);
+  if (typeof payload !== 'string') return '';
+
+  const raw = payload.trim();
+  if (!raw) return '';
+
+  // JSON that arrived unparsed, e.g. sent with no Content-Type.
+  if (raw.startsWith('{')) {
+    try {
+      const found = fromObject(JSON.parse(raw));
+      if (found) return found;
+    } catch { /* not JSON after all — fall through to plain text */ }
+  }
+
+  // Form-encoded, but only when it actually yields one of our keys; otherwise a
+  // plain note that happens to contain "=" would be mangled.
+  if (raw.includes('=')) {
+    const found = fromObject(Object.fromEntries(new URLSearchParams(raw)));
+    if (found) return found;
+  }
+
+  return raw;
 }
 
 export default async function handler(req, res) {
@@ -67,8 +113,15 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
-  const body = extractBody(req.body).trim();
-  if (!body) return res.status(400).json({ error: 'Missing note body' });
+  const body = (await extractBody(req)).trim();
+  if (!body) {
+    // Say what showed up, so a misconfigured caller is diagnosable from its own
+    // response instead of from the function logs.
+    return res.status(400).json({
+      error: 'Missing note body',
+      hint: `Send JSON {"body": "..."} or a raw text/plain body. Received Content-Type "${req.headers['content-type'] || '(none)'}" parsed as ${Buffer.isBuffer(req.body) ? 'buffer' : typeof req.body}.`,
+    });
+  }
   if (body.length > MAX_BODY) {
     return res.status(413).json({ error: `Note body exceeds ${MAX_BODY} characters` });
   }
