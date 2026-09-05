@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
-import { HOUR_HEIGHT, layoutBlocks, timeToMinutes, formatSlot, minutesToTime } from '../../utils/timeUtils.js'
+import { HOUR_HEIGHT, LAST_MINUTE, layoutBlocks, timeToMinutes, formatSlot, minutesToTime, blockEndMinutes } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
@@ -45,7 +45,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
   })
 
   const startMin = timeToMinutes(block.startTime)
-  const endMin   = timeToMinutes(draftEndTime ?? block.endTime)
+  const endMin   = draftEndTime ? timeToMinutes(draftEndTime) : blockEndMinutes(block)
   const duration = Math.max(endMin - startMin, 15)
 
   const top    = ((startMin - startOffset) / 60) * HOUR_HEIGHT
@@ -69,7 +69,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
     e.stopPropagation()
     e.preventDefault()
     const startY        = e.clientY
-    const origEndMin    = timeToMinutes(block.endTime)
+    const origEndMin    = Math.min(LAST_MINUTE, blockEndMinutes(block))
     const blockStartMin = timeToMinutes(block.startTime)
     let latestEnd       = origEndMin
     document.body.style.cursor     = 'ns-resize'
@@ -79,7 +79,7 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
     // write to Firestore on every pointer move (100+ writes for one gesture).
     const onPointerMove = (e) => {
       const deltaMin = Math.round(((e.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15
-      latestEnd = Math.max(blockStartMin + 15, Math.min(1440, origEndMin + deltaMin))
+      latestEnd = Math.max(blockStartMin + 15, Math.min(LAST_MINUTE, origEndMin + deltaMin))
       setDraftEndTime(minutesToTime(latestEnd))
     }
     const onPointerUp = () => {
@@ -163,7 +163,7 @@ export default function TimeBlocksSection({ date }) {
     const baseEnd   = Math.max(DEFAULT_END, baseStart + 60)
     const incomplete = blocks.filter(b => !b.completed)
     const start = incomplete.reduce((min, b) => Math.min(min, timeToMinutes(b.startTime)), baseStart)
-    const end   = incomplete.reduce((max, b) => Math.max(max, timeToMinutes(b.endTime)),   baseEnd)
+    const end   = incomplete.reduce((max, b) => Math.max(max, blockEndMinutes(b)),   baseEnd)
     return {
       displayStartMinutes: Math.max(0, start),
       displayEndMinutes:   Math.min(1440, end),
@@ -173,9 +173,9 @@ export default function TimeBlocksSection({ date }) {
   const displayBlocks = useMemo(() => {
     return blocks.filter(b => {
       // On today: hide completed blocks whose time has already passed (Whole Day shows all)
-      if (isToday && !showWholeDay && b.completed && nowMinutes > timeToMinutes(b.endTime)) return false
+      if (isToday && !showWholeDay && b.completed && nowMinutes > blockEndMinutes(b)) return false
       return timeToMinutes(b.startTime) < displayEndMinutes &&
-             timeToMinutes(b.endTime)   > displayStartMinutes
+             blockEndMinutes(b)         > displayStartMinutes
     })
   }, [blocks, displayStartMinutes, displayEndMinutes, showWholeDay, nowMinutes, isToday])
 
@@ -218,7 +218,7 @@ export default function TimeBlocksSection({ date }) {
     const clickedMins = displayStartMinutes + (y / HOUR_HEIGHT) * 60
     const snapped = Math.round(clickedMins / 30) * 30
     const clamped = Math.max(0, Math.min(23 * 60 + 30, snapped))
-    openScheduler({ startTime: minutesToTime(clamped), endTime: minutesToTime(clamped + 30) })
+    openScheduler({ startTime: minutesToTime(clamped), endTime: minutesToTime(Math.min(LAST_MINUTE, clamped + 30)) })
   }
 
   return (

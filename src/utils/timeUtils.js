@@ -1,5 +1,10 @@
 export const HOUR_HEIGHT = 64; // px per hour
 
+// Last minute a block may end on. 1440 would be the true end of day, but it
+// formats as "00:00" and reads back as zero, which puts the end before the
+// start and makes the block vanish.
+export const LAST_MINUTE = 1439;
+
 export const timeToMinutes = (timeStr) => {
   if (!timeStr) return 0;
   const [h, m] = timeStr.split(':').map(Number);
@@ -35,12 +40,26 @@ export const formatSlot = (minutes) => {
   return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 };
 
+// End time N minutes after a start, never spilling past the end of the day.
+export const endAfter = (startTime, mins = 30) =>
+  minutesToTime(Math.min(LAST_MINUTE, timeToMinutes(startTime) + mins));
+
+// A block whose end is at or before its start ran to the end of the day. Older
+// records hold "00:00" from when the resize handle could clamp to 1440, so read
+// them as end-of-day rather than letting them disappear.
+export const blockEndMinutes = (block) => {
+  const start = timeToMinutes(block.startTime);
+  const end = timeToMinutes(block.endTime);
+  return end <= start ? 1440 : end;
+};
+
 export const getNearestHalfHour = () => {
   const now = new Date();
   const m = now.getMinutes();
   const h = now.getHours();
-  if (m < 30) return minutesToTime(h * 60 + 30);
-  return minutesToTime((h + 1) * 60);
+  // Late enough that rounding up would land on tomorrow — hold at the last slot.
+  const next = m < 30 ? h * 60 + 30 : (h + 1) * 60;
+  return minutesToTime(Math.min(23 * 60 + 30, next));
 };
 
 export const layoutBlocks = (blocks) => {
@@ -54,7 +73,7 @@ export const layoutBlocks = (blocks) => {
     let placed = false;
     for (let i = 0; i < columns.length; i++) {
       const last = columns[i][columns[i].length - 1];
-      if (timeToMinutes(last.endTime) <= bStart) {
+      if (blockEndMinutes(last) <= bStart) {
         columns[i].push(block);
         placed = true;
         break;
@@ -65,13 +84,13 @@ export const layoutBlocks = (blocks) => {
 
   return sorted.map(block => {
     const bStart = timeToMinutes(block.startTime);
-    const bEnd = timeToMinutes(block.endTime);
+    const bEnd = blockEndMinutes(block);
     let colIdx = 0;
     for (let i = 0; i < columns.length; i++) {
       if (columns[i].includes(block)) { colIdx = i; break; }
     }
     const concurrentCols = columns.filter(col =>
-      col.some(b => timeToMinutes(b.startTime) < bEnd && timeToMinutes(b.endTime) > bStart)
+      col.some(b => timeToMinutes(b.startTime) < bEnd && blockEndMinutes(b) > bStart)
     ).length;
     return { ...block, colIdx, numCols: concurrentCols };
   });

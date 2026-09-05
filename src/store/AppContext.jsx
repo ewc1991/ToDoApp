@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { today, formatDate } from '../utils/dateUtils';
 import { templatesNeedingInstance } from '../utils/recurringUtils';
+import { reorderPlan } from '../utils/taskUtils';
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
@@ -148,16 +149,11 @@ function reducer(state, action) {
     }
 
     case 'REORDER_TASKS': {
-      const { orderedIds } = action;
       const taskMap = Object.fromEntries(state.tasks.map(t => [t.id, t]));
-      const positions = orderedIds
-        .map(id => state.tasks.findIndex(t => t.id === id))
-        .filter(i => i !== -1)
-        .sort((a, b) => a - b);
       const newTasks = [...state.tasks];
-      // Use positions[i] as sortIndex so tasks outside orderedIds keep their existing
-      // sortIndex values without collisions.
-      orderedIds.forEach((id, i) => { newTasks[positions[i]] = { ...taskMap[id], sortIndex: positions[i] }; });
+      reorderPlan(state.tasks, action.orderedIds).forEach(({ id, sortIndex }) => {
+        newTasks[sortIndex] = { ...taskMap[id], sortIndex };
+      });
       return { ...state, tasks: newTasks };
     }
 
@@ -357,16 +353,14 @@ export function AppProvider({ children }) {
       }
 
       case 'REORDER_TASKS': {
-        if (uid && action.orderedIds) {
-          const positions = action.orderedIds
-            .map(id => s.tasks.findIndex(t => t.id === id))
-            .filter(i => i !== -1)
-            .sort((a, b) => a - b);
-          const batch = writeBatch(db);
-          action.orderedIds.forEach((id, i) => {
-            batch.update(doc(db, 'users', uid, 'tasks', id), { sortIndex: positions[i], updatedAt: ts() });
-          });
-          batch.commit().catch(handleErrRef.current);
+        if (uid) {
+          const plan = reorderPlan(s.tasks, action.orderedIds);
+          if (plan.length) {
+            const batch = writeBatch(db);
+            const nowTs = ts();
+            plan.forEach(({ id, sortIndex }) => batch.update(doc(db, 'users', uid, 'tasks', id), { sortIndex, updatedAt: nowTs }));
+            batch.commit().catch(handleErrRef.current);
+          }
         }
         break;
       }
@@ -712,6 +706,18 @@ export function AppProvider({ children }) {
       window.removeEventListener('focus', onWake);
     };
   }, [uid, runDayTransition, dispatch]);
+
+  // Today's instances used to be created only by opening today's planner: the
+  // midnight timer needs the app left open, and the wake handler returns early
+  // when the date has not changed. So the app could sit on the calendar all day
+  // with nothing generated. Runs after render, so the dispatch wrapper reads a
+  // settled state rather than the snapshot that is still being applied.
+  useEffect(() => {
+    if (!uid || !state.recurringTemplatesLoaded) return;
+    const todayStr = today();
+    if (state.generatedDates.includes(todayStr)) return;
+    dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: todayStr });
+  }, [uid, state.recurringTemplatesLoaded, state.generatedDates, dispatch]);
 
   // Debounced save of navigation/UI settings (not covered by per-action writes)
   useEffect(() => {

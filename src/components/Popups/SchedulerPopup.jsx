@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
 import MicIcon from '../MicIcon.jsx'
 import { useApp } from '../../store/AppContext.jsx'
-import { getNearestHalfHour, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
+import { getNearestHalfHour, endAfter, minutesToTime, timeToMinutes, blockEndMinutes, LAST_MINUTE } from '../../utils/timeUtils.js'
 import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 
 export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
@@ -10,7 +10,11 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const existing = blockId ? state.scheduledBlocks.find(b => b.id === blockId) : null
 
   const defaultStart = existing?.startTime || prefill?.startTime || getNearestHalfHour()
-  const defaultEnd = existing?.endTime || minutesToTime(timeToMinutes(defaultStart) + 30)
+  // A block saved with a broken end reads as end-of-day; show that as a real
+  // time so it can be edited back into shape.
+  const defaultEnd = existing
+    ? minutesToTime(Math.min(LAST_MINUTE, blockEndMinutes(existing)))
+    : (prefill?.endTime || endAfter(defaultStart))
 
   const [title, setTitle] = useState(existing?.title || prefill?.title || '')
   const [notes, setNotes] = useState(existing?.notes || prefill?.notes || '')
@@ -35,7 +39,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
     setStartTime(val)
     const startMin = timeToMinutes(val)
     const endMin = timeToMinutes(endTime)
-    if (endMin <= startMin) setEndTime(minutesToTime(startMin + 30))
+    if (endMin <= startMin) setEndTime(endAfter(val))
   }
 
   const handleSave = () => {

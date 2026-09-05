@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
+import { shouldRecurOnDate } from '../../utils/recurringUtils.js'
 import {
   MONTH_NAMES, DAY_NAMES,
   getDaysInMonth, getFirstDayOfMonth, makeDateStr, isToday, formatDisplayDate
@@ -42,6 +43,13 @@ export default function CalendarView() {
   for (let d = 1; cells.length < totalCells; d++) {
     cells.push({ day: d, dateStr: makeDateStr(nextYear, nextMonth + 1, d), currentMonth: false })
   }
+
+  // A recurring task has no row until its day has been opened, so a dot driven
+  // only by existing tasks can never preview one. Ask the templates instead.
+  const recursOn = useMemo(() => {
+    const templates = state.recurringTemplates
+    return (dateStr) => templates.some(t => shouldRecurOnDate(t, dateStr))
+  }, [state.recurringTemplates])
 
   const YEARS = []
   for (let y = year - 5; y <= year + 10; y++) YEARS.push(y)
@@ -88,7 +96,7 @@ export default function CalendarView() {
 
       <div className="calendar-grid">
         {cells.map(cell => {
-          const hasTasks = taskDateSet.has(cell.dateStr)
+          const hasTasks = taskDateSet.has(cell.dateStr) || recursOn(cell.dateStr)
           const selected = cell.dateStr === state.currentPlannerDate
           const isCurrentDay = isToday(cell.dateStr)
           return (
