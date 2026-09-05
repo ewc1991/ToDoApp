@@ -8,9 +8,10 @@ export default defineConfig({
       output: {
         // Firebase is most of the bundle and changes far less often than app code —
         // splitting it keeps app updates from busting the big vendor chunk.
-        manualChunks: {
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+        // Rolldown (Vite 8) takes only the function form, not an entry map.
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) return 'firebase'
+          if (id.includes('node_modules/@dnd-kit')) return 'dnd'
         },
       },
     },
