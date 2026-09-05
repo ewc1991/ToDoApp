@@ -57,3 +57,23 @@ describe('extractBody', () => {
     expect(await extractBody(req({ unrelated: 'x' }, 'application/json'))).toBe('')
   })
 })
+
+describe('bodies mangled by Content-Type guessing', () => {
+  // Vercel form-decodes anything it can, so a caller that posts JSON without
+  // setting Content-Type hands us {'{"body":"hi"}': ''} rather than a string.
+  it('recovers JSON that was form-decoded into a junk key', async () => {
+    expect(await extractBody(req({ '{"body":"hi"}': '' }, 'application/x-www-form-urlencoded'))).toBe('hi')
+  })
+
+  it('recovers plain text that was form-decoded into a junk key', async () => {
+    expect(await extractBody(req({ 'just a note': '' }, 'application/x-www-form-urlencoded'))).toBe('just a note')
+  })
+
+  it('rejoins a payload that got split on "&"', async () => {
+    expect(await extractBody(req({ '{"body":"a': '', 'b"}': '' }))).toBe('a&b')
+  })
+
+  it('still ignores an object with real keys but no note', async () => {
+    expect(await extractBody(req({ title: 'x', tag: 'y' }, 'application/json'))).toBe('')
+  })
+})

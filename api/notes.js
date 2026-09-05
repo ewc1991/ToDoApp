@@ -73,7 +73,16 @@ export async function extractBody(req) {
     payload = await readRawBody(req);
   }
 
-  if (payload && typeof payload === 'object') return fromObject(payload);
+  if (payload && typeof payload === 'object') {
+    const found = fromObject(payload);
+    if (found) return found;
+    // A body sent without a usable Content-Type gets form-decoded anyway, which
+    // turns the whole payload into keys with empty values. Rejoin them and let
+    // the string handling below have a go at the real content.
+    const entries = Object.entries(payload);
+    if (!entries.length || !entries.every(([, v]) => v === '')) return '';
+    payload = entries.map(([k]) => k).join('&');
+  }
   if (typeof payload !== 'string') return '';
 
   const raw = payload.trim();
