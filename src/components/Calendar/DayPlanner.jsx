@@ -7,6 +7,7 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatDisplayDate } from '../../utils/dateUtils.js'
 import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
+import { useIsMobile } from '../../utils/useMediaQuery.js'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
@@ -25,6 +26,9 @@ export default function DayPlanner({ date }) {
   const [activeTask, setActiveTask] = useState(null)
   const [schedulerPrefill, setSchedulerPrefill] = useState(null)
   const [panelWidth, setPanelWidth] = useState(300)
+  // Phones show one panel at a time; the two side-by-side panels do not fit.
+  const isMobile = useIsMobile()
+  const [mobileTab, setMobileTab] = useState('blocks')
   const [dividerDragging, setDividerDragging] = useState(false)
   const dividerRef = useRef({ dragging: false, startX: 0, startWidth: 0 })
 
@@ -81,6 +85,18 @@ export default function DayPlanner({ date }) {
       !scheduledTaskIds.has(t.id)
     )
   , [state.tasks, scheduledTaskIds])
+
+  // Mirrors the badge the Unscheduled panel shows in its own header.
+  const pendingCount = useMemo(
+    () => unscheduledTasks.filter(t => !t.completed).length + backlogTasks.length,
+    [unscheduledTasks, backlogTasks]
+  )
+
+  // Dragging a task onto the time blocks is how it gets scheduled, but with
+  // the panels in separate tabs that drop target is not on screen. Give the
+  // task rows a tap route to the same scheduler.
+  const handleScheduleTask = (task) =>
+    setSchedulerPrefill({ title: task.title, notes: task.notes, todoTaskId: task.id })
 
   const handleDragStart = ({ active }) => {
     if (String(active.id).startsWith('block-')) return  // block drag: no overlay
@@ -150,13 +166,48 @@ export default function DayPlanner({ date }) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveTask(null)}
       >
-        <div className="planner-body">
-          <UnscheduledSection tasks={unscheduledTasks} backlogTasks={backlogTasks} date={date} activeId={activeTask?.id} width={panelWidth} />
-          <div
-            className={`panel-divider${dividerDragging ? ' dragging' : ''}`}
-            onMouseDown={handleDividerMouseDown}
-          />
-          <TimeBlocksSection date={date} />
+        {isMobile && (
+          <div className="planner-tabs" role="tablist" aria-label="Day view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === 'blocks'}
+              className={`planner-tab${mobileTab === 'blocks' ? ' active' : ''}`}
+              onClick={() => setMobileTab('blocks')}
+            >
+              Time Blocks
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === 'unscheduled'}
+              className={`planner-tab${mobileTab === 'unscheduled' ? ' active' : ''}`}
+              onClick={() => setMobileTab('unscheduled')}
+            >
+              Unscheduled
+              {pendingCount > 0 && <span className="planner-tab-count">{pendingCount}</span>}
+            </button>
+          </div>
+        )}
+
+        <div className={`planner-body${isMobile ? ' tabbed' : ''}`}>
+          {(!isMobile || mobileTab === 'unscheduled') && (
+            <UnscheduledSection
+              tasks={unscheduledTasks}
+              backlogTasks={backlogTasks}
+              date={date}
+              activeId={activeTask?.id}
+              width={isMobile ? null : panelWidth}
+              onSchedule={isMobile ? handleScheduleTask : undefined}
+            />
+          )}
+          {!isMobile && (
+            <div
+              className={`panel-divider${dividerDragging ? ' dragging' : ''}`}
+              onMouseDown={handleDividerMouseDown}
+            />
+          )}
+          {(!isMobile || mobileTab === 'blocks') && <TimeBlocksSection date={date} />}
         </div>
 
         <DragOverlay>

@@ -414,6 +414,53 @@ a { color: inherit; text-decoration: none; }
 }
 .planner-body { flex: 1; display: flex; overflow: hidden; }
 
+/* ── Planner tabs (mobile only) ─────────────────────────── */
+.planner-tabs {
+  display: flex; gap: 6px; flex-shrink: 0;
+  padding: 8px 14px 10px;
+}
+.planner-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 12px; border-radius: var(--r-md);
+  font-size: 13px; font-weight: 800; letter-spacing: .2px;
+  color: var(--text-3); background: rgba(255,255,255,.6);
+  border: 1.5px solid var(--border);
+  transition: color .18s, background .18s, border-color .18s, box-shadow .18s;
+}
+.planner-tab.active {
+  color: #fff; border-color: transparent;
+  background: var(--grad-brand);
+  box-shadow: 0 4px 14px rgba(232,85,55,.32);
+}
+.planner-tab-count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; line-height: 1;
+  background: var(--gold-light); color: var(--gold-dark);
+}
+.planner-tab.active .planner-tab-count { background: rgba(255,255,255,.9); color: var(--rose-dark); }
+
+/* One panel at a time fills the space the pair used to share. */
+.planner-body.tabbed > .unscheduled-section,
+.planner-body.tabbed > .time-blocks-section {
+  width: 100% !important; max-height: none; height: 100%;
+  border-right: none; border-bottom: none;
+}
+
+/* Tap route to the scheduler, since the drag target lives in the other tab */
+.task-schedule-btn {
+  flex-shrink: 0; width: 30px; height: 30px; margin-left: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  color: var(--text-3); background: rgba(255,255,255,.7);
+  border: 1.5px solid var(--border);
+  transition: all .2s cubic-bezier(0.34,1.56,0.64,1);
+}
+.task-schedule-btn svg { width: 16px; height: 16px; }
+.task-schedule-btn:hover, .task-schedule-btn:active {
+  color: var(--rose-dark); border-color: rgba(239,41,76,.3); background: var(--rose-light);
+}
+
 /* ── Unscheduled Section ───────────────────────────────── */
 .unscheduled-section {
   width: 300px; min-width: 160px;
@@ -1028,7 +1075,7 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   .header-nav { display: none; }
   .header { padding: 0 16px; }
   .planner-body { flex-direction: column; }
-  .unscheduled-section { width: 100% !important; border-right: none; border-bottom: 1px solid var(--border); max-height: 38vh; }
+  .unscheduled-section { width: 100% !important; border-right: none; border-bottom: none; }
   .panel-divider { display: none; }
   .calendar-view { padding: 14px; }
   .calendar-grid { gap: 4px; }
