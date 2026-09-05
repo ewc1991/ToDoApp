@@ -43,7 +43,8 @@ function presentedSecret(req) {
   return (req.headers['x-webhook-secret'] || '').trim();
 }
 
-const BODY_KEYS = ['body', 'text', 'note', 'content', 'message'];
+// 'transcription' is what the voice-recorder ring names its field.
+const BODY_KEYS = ['body', 'text', 'note', 'transcription', 'content', 'message'];
 
 function fromObject(obj) {
   if (!obj || typeof obj !== 'object') return '';
@@ -66,7 +67,35 @@ async function readRawBody(req) {
   }
 }
 
+// Vercel never parses multipart/form-data, so the raw envelope arrives intact
+// and we pull the text fields out ourselves.
+function parseMultipart(raw, boundary) {
+  const fields = {};
+  for (const chunk of raw.split(`--${boundary}`)) {
+    const part = chunk.replace(/^\r?\n/, '');
+    if (!part || part.startsWith('--')) continue;
+    const split = part.search(/\r?\n\r?\n/);
+    if (split === -1) continue;
+    const name = /name="([^"]*)"/i.exec(part.slice(0, split));
+    if (!name) continue;
+    fields[name[1]] = part.slice(split).replace(/^\r?\n\r?\n/, '').replace(/\r?\n$/, '');
+  }
+  return fields;
+}
+
+function boundaryFrom(contentType, raw) {
+  const declared = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || '');
+  if (declared) return (declared[1] || declared[2]).trim();
+  // No usable Content-Type reached us — the envelope opens with the boundary.
+  const firstLine = raw.split(/\r?\n/, 1)[0].trim();
+  return firstLine.startsWith('--') ? firstLine.slice(2) : '';
+}
+
+const looksMultipart = (raw) =>
+  raw.startsWith('--') && /content-disposition:\s*form-data/i.test(raw);
+
 export async function extractBody(req) {
+  const contentType = req.headers['content-type'] || '';
   let payload = req.body;
   if (Buffer.isBuffer(payload)) payload = payload.toString('utf8');
   if (payload === undefined || payload === null || payload === '') {
@@ -87,6 +116,16 @@ export async function extractBody(req) {
 
   const raw = payload.trim();
   if (!raw) return '';
+
+  // Multipart, either declared in the header or sniffed from the envelope.
+  if (contentType.startsWith('multipart/form-data') || looksMultipart(raw)) {
+    const boundary = boundaryFrom(contentType, raw);
+    if (boundary) {
+      // Never fall through to the raw-text path from here: storing a whole
+      // multipart envelope as the note is worse than a clear 400.
+      return fromObject(parseMultipart(raw, boundary));
+    }
+  }
 
   // JSON that arrived unparsed, e.g. sent with no Content-Type.
   if (raw.startsWith('{')) {
@@ -128,7 +167,7 @@ export default async function handler(req, res) {
     // response instead of from the function logs.
     return res.status(400).json({
       error: 'Missing note body',
-      hint: `Send JSON {"body": "..."} or a raw text/plain body. Received Content-Type "${req.headers['content-type'] || '(none)'}" parsed as ${Buffer.isBuffer(req.body) ? 'buffer' : typeof req.body}.`,
+      hint: `Send the note as JSON, form-encoded, multipart, or raw text, under any of: ${BODY_KEYS.join(", ")}. Received Content-Type "${req.headers['content-type'] || '(none)'}" parsed as ${Buffer.isBuffer(req.body) ? 'buffer' : typeof req.body}.`,
     });
   }
   if (body.length > MAX_BODY) {

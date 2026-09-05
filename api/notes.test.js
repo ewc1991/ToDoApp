@@ -77,3 +77,44 @@ describe('bodies mangled by Content-Type guessing', () => {
     expect(await extractBody(req({ title: 'x', tag: 'y' }, 'application/json'))).toBe('')
   })
 })
+
+describe('multipart/form-data from the voice ring', () => {
+  // Verbatim shape the ring posts: CRLF line endings, the note in a field
+  // called `transcription`, alongside metadata we ignore.
+  const B = 'e1ce4698-bff3-4ef9-b062-a5693a6668d8'
+  const envelope = [
+    `--${B}`,
+    'Content-Disposition: form-data; name="transcription"',
+    '',
+    'Test, test, test.',
+    `--${B}`,
+    'Content-Disposition: form-data; name="recordedAt"',
+    '',
+    '1788583020066',
+    `--${B}`,
+    'Content-Disposition: form-data; name="client"',
+    '',
+    'ring',
+    `--${B}--`,
+    '',
+  ].join('\r\n')
+
+  it('takes only the transcription, not the whole envelope', async () => {
+    const got = await extractBody(req(Buffer.from(envelope), `multipart/form-data; boundary=${B}`))
+    expect(got).toBe('Test, test, test.')
+  })
+
+  it('sniffs the boundary when no Content-Type survives', async () => {
+    expect(await extractBody(req(Buffer.from(envelope)))).toBe('Test, test, test.')
+  })
+
+  it('handles a quoted boundary and bare LF endings', async () => {
+    const lf = envelope.replace(/\r\n/g, '\n')
+    expect(await extractBody(req(Buffer.from(lf), `multipart/form-data; boundary="${B}"`))).toBe('Test, test, test.')
+  })
+
+  it('ignores an envelope whose fields are all unknown', async () => {
+    const other = `--${B}\r\nContent-Disposition: form-data; name="client"\r\n\r\nring\r\n--${B}--\r\n`
+    expect(await extractBody(req(Buffer.from(other), `multipart/form-data; boundary=${B}`))).toBe('')
+  })
+})
