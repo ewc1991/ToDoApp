@@ -8,3 +8,10 @@ dist
 # Firebase console scaffolding leftovers (contain project config)
 firebase config.txt
 firebase config.txt.bak
+
+# Webhook secrets — service-account keys bypass firestore.rules entirely
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
