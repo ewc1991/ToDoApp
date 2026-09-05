@@ -16,6 +16,31 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { timingSafeEqual } from 'node:crypto';
 
 const MAX_BODY = 10_000;
+const TOO_BIG = Symbol('too-big');
+
+// Rate limiting, best effort. Fluid Compute reuses instances, so a burst from one
+// source usually meets the same counter — but traffic spread across instances will
+// not. The secret is still the real gate; this caps what a leaked one can do before
+// it is rotated, and slows guessing.
+const WINDOW_MS = 60_000;
+const MAX_WRITES = 30;   // notes per minute per source
+const MAX_FAILURES = 10; // rejected secrets per minute per source
+const hits = new Map();
+
+function withinLimit(key, limit) {
+  const now = Date.now();
+  const seen = (hits.get(key) || []).filter(t => now - t < WINDOW_MS);
+  seen.push(now);
+  hits.set(key, seen);
+  // Drop fully aged-out keys so a long-lived instance cannot grow the map forever.
+  if (hits.size > 500) {
+    for (const [k, v] of hits) if (!v.some(t => now - t < WINDOW_MS)) hits.delete(k);
+  }
+  return seen.length <= limit;
+}
+
+const sourceOf = (req) =>
+  (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
@@ -60,7 +85,15 @@ function fromObject(obj) {
 async function readRawBody(req) {
   try {
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      // Stop reading rather than buffering a whole oversized body only to reject
+      // it afterwards. The cap is in bytes and MAX_BODY is characters, so leave
+      // room for multi-byte UTF-8 before giving up.
+      if (size > MAX_BODY * 4) return TOO_BIG;
+      chunks.push(chunk);
+    }
     return Buffer.concat(chunks).toString('utf8');
   } catch {
     return '';
@@ -100,6 +133,7 @@ export async function extractBody(req) {
   if (Buffer.isBuffer(payload)) payload = payload.toString('utf8');
   if (payload === undefined || payload === null || payload === '') {
     payload = await readRawBody(req);
+    if (payload === TOO_BIG) return TOO_BIG;
   }
 
   if (payload && typeof payload === 'object') {
@@ -151,8 +185,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const source = sourceOf(req);
+
   if (!secretMatches(presentedSecret(req), process.env.NOTES_WEBHOOK_SECRET)) {
+    if (!withinLimit('fail:' + source, MAX_FAILURES)) {
+      return res.status(429).json({ error: 'Too many failed attempts. Try again in a minute.' });
+    }
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!withinLimit('ok:' + source, MAX_WRITES)) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ error: 'At most ' + MAX_WRITES + ' notes per minute.' });
   }
 
   const uid = process.env.NOTES_USER_UID;
@@ -161,7 +205,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
-  const body = (await extractBody(req)).trim();
+  const extracted = await extractBody(req);
+  if (extracted === TOO_BIG) {
+    return res.status(413).json({ error: `Note body exceeds ${MAX_BODY} characters` });
+  }
+
+  const body = extracted.trim();
   if (!body) {
     // Say what showed up, so a misconfigured caller is diagnosable from its own
     // response instead of from the function logs.

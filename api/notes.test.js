@@ -118,3 +118,39 @@ describe('multipart/form-data from the voice ring', () => {
     expect(await extractBody(req(Buffer.from(other), `multipart/form-data; boundary=${B}`))).toBe('')
   })
 })
+
+describe('oversized bodies', () => {
+  // The cap has to stop the read, not buffer everything and reject afterwards.
+  const streamOf = (totalBytes, chunk = 64 * 1024) => {
+    let sent = 0
+    return {
+      headers: {},
+      body: undefined,
+      chunksRead: 0,
+      async *[Symbol.asyncIterator]() {
+        while (sent < totalBytes) {
+          const size = Math.min(chunk, totalBytes - sent)
+          sent += size
+          this.chunksRead++
+          yield Buffer.alloc(size, 'x')
+        }
+      },
+    }
+  }
+
+  it('gives up partway instead of reading the whole body', async () => {
+    const req = streamOf(8 * 1024 * 1024)
+    await extractBody(req)
+    // 10k chars * 4 bytes = ~40KB ceiling, so it must bail in the first chunk or two.
+    expect(req.chunksRead).toBeLessThanOrEqual(2)
+  })
+
+  it('still reads a body that fits', async () => {
+    const req = {
+      headers: {},
+      body: undefined,
+      async *[Symbol.asyncIterator]() { yield Buffer.from('a normal note') },
+    }
+    expect(await extractBody(req)).toBe('a normal note')
+  })
+})
