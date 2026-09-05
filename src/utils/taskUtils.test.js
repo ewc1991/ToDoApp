@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { reorderPlan } from './taskUtils.js'
+import { reorderPlan, duplicateRecurringIds } from './taskUtils.js'
 
 const tasks = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
 
@@ -33,5 +33,53 @@ describe('reorderPlan', () => {
     expect(reorderPlan(tasks, ['x', 'y'])).toEqual([])
     expect(reorderPlan([], ['a'])).toEqual([])
     expect(reorderPlan(tasks)).toEqual([])
+  })
+})
+
+describe('duplicateRecurringIds', () => {
+  const t = (id, over = {}) => ({
+    id, recurringTemplateId: 'tmpl', assignedDate: '2026-09-05',
+    completed: false, createdAt: '2026-09-05T08:00:00.000Z', ...over,
+  })
+
+  it('returns nothing when there are no duplicates', () => {
+    expect(duplicateRecurringIds([t('a'), t('b', { recurringTemplateId: 'other' })])).toEqual([])
+  })
+
+  it('keeps one and returns the rest', () => {
+    const dupes = duplicateRecurringIds([
+      t('a', { createdAt: '2026-09-05T08:00:00.000Z' }),
+      t('b', { createdAt: '2026-09-05T08:00:01.000Z' }),
+      t('c', { createdAt: '2026-09-05T08:00:02.000Z' }),
+    ])
+    expect(dupes).toEqual(['b', 'c'])  // oldest survives
+  })
+
+  it('keeps a completed instance over an untouched one', () => {
+    const dupes = duplicateRecurringIds([
+      t('a', { createdAt: '2026-09-05T08:00:00.000Z' }),
+      t('b', { createdAt: '2026-09-05T08:00:01.000Z', completed: true }),
+    ])
+    expect(dupes).toEqual(['a'])
+  })
+
+  it('keeps the instance a time block points at', () => {
+    // Deleting this one would leave the block pointing at nothing.
+    const dupes = duplicateRecurringIds(
+      [t('a', { completed: true }), t('b')],
+      new Set(['b'])
+    )
+    expect(dupes).toEqual(['a'])
+  })
+
+  it('treats different dates as separate occurrences', () => {
+    expect(duplicateRecurringIds([t('a'), t('b', { assignedDate: '2026-09-06' })])).toEqual([])
+  })
+
+  it('ignores tasks that are not recurring instances', () => {
+    expect(duplicateRecurringIds([
+      { id: 'a', assignedDate: '2026-09-05' },
+      { id: 'b', assignedDate: '2026-09-05' },
+    ])).toEqual([])
   })
 })

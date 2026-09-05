@@ -8,7 +8,7 @@ import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { today, formatDate } from '../utils/dateUtils';
 import { templatesNeedingInstance } from '../utils/recurringUtils';
-import { reorderPlan } from '../utils/taskUtils';
+import { reorderPlan, duplicateRecurringIds } from '../utils/taskUtils';
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
@@ -281,7 +281,16 @@ export function AppProvider({ children }) {
   const settingsReadyRef = useRef(false);
   const cachedTasksRef = useRef([]);
   const cachedTemplatesRef = useRef([]);
+  const cachedBlocksRef = useRef([]);
   const lastTransitionDateRef = useRef(today());
+  // Dates generation has already been kicked off for, tracked synchronously.
+  // Two effects can dispatch for the same date in one commit — the provider
+  // one for today and CalendarPage for the open day, which is the same date
+  // whenever today is on screen. Both would read the same pre-update state
+  // and each write a full set of task docs; the reducer would drop the second
+  // but the writes had already landed, so the duplicates came back on the
+  // next snapshot.
+  const generatingRef = useRef(new Set());
   const [networkError, setNetworkError] = useState(null);
   const networkErrorTimerRef = useRef(null);
   const handleErrRef = useRef((e) => {
@@ -436,6 +445,9 @@ export function AppProvider({ children }) {
         // days keep theirs so history is not rewritten. Generation itself skips
         // templates that already have an instance, so nothing duplicates.
         const keptDates = s.generatedDates.filter(d => d < today());
+        for (const d of [...generatingRef.current]) {
+          if (d >= today()) generatingRef.current.delete(d);
+        }
         if (keptDates.length !== s.generatedDates.length) {
           enriched = { ...enriched, generatedDates: keptDates };
           if (uid) {
@@ -456,6 +468,9 @@ export function AppProvider({ children }) {
         // days keep theirs so history is not rewritten. Generation itself skips
         // templates that already have an instance, so nothing duplicates.
         const keptDates = s.generatedDates.filter(d => d < today());
+        for (const d of [...generatingRef.current]) {
+          if (d >= today()) generatingRef.current.delete(d);
+        }
         if (keptDates.length !== s.generatedDates.length) {
           enriched = { ...enriched, generatedDates: keptDates };
           if (uid) {
@@ -500,6 +515,8 @@ export function AppProvider({ children }) {
 
       case 'GENERATE_RECURRING_FOR_DATE': {
         if (s.generatedDates.includes(action.dateStr)) break; // reducer also guards; skip Firestore write
+        if (generatingRef.current.has(action.dateStr)) break; // already in flight this tick
+        generatingRef.current.add(action.dateStr);
         const base = nextSortIndex(s.tasks);
         const newTasks = templatesNeedingInstance(s.recurringTemplates, s.tasks, action.dateStr)
           .map((tmpl, i) => ({
@@ -527,7 +544,7 @@ export function AppProvider({ children }) {
 
   // Roll incomplete dated tasks forward to today, and prune stale non-rolling
   // recurring instances. Safe to call repeatedly — it no-ops when there's nothing to do.
-  const runDayTransition = useCallback((tasks, templates) => {
+  const runDayTransition = useCallback((tasks, templates, blocks = []) => {
     if (!uid) return;
     const todayStr = today();
     const templateMap = Object.fromEntries(templates.map(t => [t.id, t]));
@@ -546,7 +563,11 @@ export function AppProvider({ children }) {
       if (t.assignedDate < cutoff) toPrune.push(t);
     });
 
-    if (toRoll.length === 0 && toPrune.length === 0) return;
+    // Same template, same date, more than once — see duplicateRecurringIds.
+    const linkedTaskIds = new Set(blocks.filter(b => b.todoTaskId).map(b => b.todoTaskId));
+    const duplicateIds = duplicateRecurringIds(tasks, linkedTaskIds);
+
+    if (toRoll.length === 0 && toPrune.length === 0 && duplicateIds.length === 0) return;
 
     const nowTs = ts();
     const batch = writeBatch(db);
@@ -554,12 +575,13 @@ export function AppProvider({ children }) {
       batch.update(doc(db, 'users', uid, 'tasks', t.id), { assignedDate: todayStr, updatedAt: nowTs })
     );
     toPrune.forEach(t => batch.delete(doc(db, 'users', uid, 'tasks', t.id)));
+    duplicateIds.forEach(id => batch.delete(doc(db, 'users', uid, 'tasks', id)));
     batch.commit().catch(handleErrRef.current);
 
     baseDispatch({
       type: 'DAY_TRANSITION',
       rolledIds: toRoll.map(t => t.id),
-      prunedIds: toPrune.map(t => t.id),
+      prunedIds: [...toPrune.map(t => t.id), ...duplicateIds],
       toDate: todayStr,
     });
   }, [uid]);
@@ -568,6 +590,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!uid) {
       settingsReadyRef.current = false;
+      generatingRef.current = new Set();
       baseDispatch({ type: 'RESET' });
       return;
     }
@@ -610,13 +633,15 @@ export function AppProvider({ children }) {
       let settingsFirstFired = false;
       let tasksFirstFired = false;
       let templatesFirstFired = false;
+      let blocksFirstFired = false;
       let cachedTasks = [];
       let cachedTemplates = [];
+      let cachedBlocks = [];
 
       const tryRollover = () => {
-        if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired) return;
+        if (!settingsFirstFired || !tasksFirstFired || !templatesFirstFired || !blocksFirstFired) return;
         lastTransitionDateRef.current = today();
-        runDayTransition(cachedTasks, cachedTemplates);
+        runDayTransition(cachedTasks, cachedTemplates, cachedBlocks);
       };
 
       // A read failure (expired token, revoked permission, quota) otherwise surfaces as an
@@ -635,8 +660,11 @@ export function AppProvider({ children }) {
           if (!tasksFirstFired) { tasksFirstFired = true; tryRollover(); }
         }, onReadError),
         onSnapshot(collection(db, 'users', uid, 'scheduledBlocks'), snap => {
-          if (!cancelled)
-            baseDispatch({ type: 'SET_SCHEDULED_BLOCKS', scheduledBlocks: snap.docs.map(d => d.data()) });
+          if (cancelled) return;
+          cachedBlocks = snap.docs.map(d => d.data());
+          cachedBlocksRef.current = cachedBlocks;
+          baseDispatch({ type: 'SET_SCHEDULED_BLOCKS', scheduledBlocks: cachedBlocks });
+          if (!blocksFirstFired) { blocksFirstFired = true; tryRollover(); }
         }, onReadError),
         onSnapshot(collection(db, 'users', uid, 'recurringTemplates'), snap => {
           if (cancelled) return;
@@ -683,7 +711,7 @@ export function AppProvider({ children }) {
     const runTransition = () => {
       const todayStr = today();
       lastTransitionDateRef.current = todayStr;
-      runDayTransition(cachedTasksRef.current, cachedTemplatesRef.current);
+      runDayTransition(cachedTasksRef.current, cachedTemplatesRef.current, cachedBlocksRef.current);
       dispatch({ type: 'GENERATE_RECURRING_FOR_DATE', dateStr: todayStr });
     };
 
