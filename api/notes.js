@@ -11,9 +11,7 @@
 //   FIREBASE_SERVICE_ACCOUNT  service-account JSON, pasted whole
 //   NOTES_WEBHOOK_SECRET      shared secret callers send as a bearer token
 //   NOTES_USER_UID            the Firebase uid notes land under
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { timingSafeEqual } from 'node:crypto';
+import { db, secretMatches } from './_firebase.js';
 
 const MAX_BODY = 10_000;
 const TOO_BIG = Symbol('too-big');
@@ -53,22 +51,7 @@ async function withinWriteLimit(uid) {
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 const ts = () => new Date().toISOString();
 
-function db() {
-  if (!getApps().length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT is not set');
-    initializeApp({ credential: cert(JSON.parse(raw)) });
-  }
-  return getFirestore();
-}
 
-// Constant-time compare so the secret can't be guessed a byte at a time.
-function secretMatches(given, expected) {
-  if (!given || !expected) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 function presentedSecret(req) {
   const auth = req.headers.authorization || '';
