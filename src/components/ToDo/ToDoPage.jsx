@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { formatShortDate } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import { isHighPriority } from '../../utils/taskUtils.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
@@ -47,6 +48,7 @@ export default function ToDoPage() {
   const tasks = state.showCompletedTasks ? allTasks : allTasks.filter(t => !t.completed)
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
+    if (isHighPriority(a) !== isHighPriority(b)) return isHighPriority(a) ? -1 : 1
     if (a.assignedDate && b.assignedDate) return a.assignedDate.localeCompare(b.assignedDate)
     if (a.assignedDate) return -1
     if (b.assignedDate) return 1
@@ -85,7 +87,7 @@ export default function ToDoPage() {
           </div>
         )}
         {sortedTasks.map(task => (
-          <div key={task.id} className={`todo-item${task.completed ? ' completed' : ''}`}>
+          <div key={task.id} className={`todo-item${task.completed ? ' completed' : ''}${isHighPriority(task) ? ' high-priority' : ''}`}>
             <button
               type="button"
               role="checkbox"
@@ -100,6 +102,7 @@ export default function ToDoPage() {
               <div className="task-title">{task.title}</div>
               {task.notes && <div className="task-notes">{task.notes}</div>}
               <div className="task-meta">
+                {isHighPriority(task) && <span className="task-badge priority">⚑ High</span>}
                 {task.assignedDate && (
                   <span className="task-badge date">{formatShortDate(task.assignedDate)}</span>
                 )}

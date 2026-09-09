@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Modal from './Modal.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { useApp } from '../../store/AppContext.jsx'
+import { isHighPriority } from '../../utils/taskUtils.js'
 
 export default function ToDoPopup({ taskId, date, onClose }) {
   const { state, dispatch } = useApp()
@@ -10,6 +11,7 @@ export default function ToDoPopup({ taskId, date, onClose }) {
   const [title, setTitle] = useState(existing?.title || '')
   const [notes, setNotes] = useState(existing?.notes || '')
   const [assignedDate, setAssignedDate] = useState(existing?.assignedDate || date || '')
+  const [priority, setPriority] = useState(isHighPriority(existing) ? 'high' : null)
   const titleRef = useRef(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -18,9 +20,9 @@ export default function ToDoPopup({ taskId, date, onClose }) {
   const handleSave = () => {
     if (!title.trim()) return
     if (existing) {
-      dispatch({ type: 'UPDATE_TASK', id: existing.id, updates: { title: title.trim(), notes, assignedDate: assignedDate || null } })
+      dispatch({ type: 'UPDATE_TASK', id: existing.id, updates: { title: title.trim(), notes, assignedDate: assignedDate || null, priority } })
     } else {
-      dispatch({ type: 'ADD_TASK', title: title.trim(), notes, assignedDate: assignedDate || null })
+      dispatch({ type: 'ADD_TASK', title: title.trim(), notes, assignedDate: assignedDate || null, priority })
     }
     onClose()
   }
@@ -57,6 +59,23 @@ export default function ToDoPopup({ taskId, date, onClose }) {
       <div className="form-group">
         <label className="form-label">Notes</label>
         <textarea className="form-input" placeholder="Optional notes…" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Priority</label>
+        <div className="priority-toggle">
+          <button
+            type="button"
+            aria-pressed={priority !== 'high'}
+            className={`recur-type-btn${priority !== 'high' ? ' active' : ''}`}
+            onClick={() => setPriority(null)}
+          >Normal</button>
+          <button
+            type="button"
+            aria-pressed={priority === 'high'}
+            className={`recur-type-btn priority-high-btn${priority === 'high' ? ' active' : ''}`}
+            onClick={() => setPriority('high')}
+          >⚑ High priority</button>
+        </div>
       </div>
       <div className="form-group">
         <label className="form-label">Date <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span></label>

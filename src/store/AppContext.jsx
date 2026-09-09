@@ -314,6 +314,7 @@ export function AppProvider({ children }) {
           id: genId(), title: action.title, notes: action.notes || '',
           completed: false, assignedDate: action.assignedDate || null,
           recurringTemplateId: action.recurringTemplateId || null,
+          priority: action.priority || null,
           sortIndex: nextSortIndex(s.tasks),
           createdAt: ts(), updatedAt: ts(),
         };

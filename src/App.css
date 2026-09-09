@@ -556,6 +556,30 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700; border: 1px solid var(--gold-border); line-height: 1.5;
 }
 .task-badge.date { background: var(--sky-light); color: var(--sky-dark); border-color: var(--sky-border); }
+.task-badge.priority { background: var(--coral-light); color: var(--coral-dark); border-color: var(--coral-border); }
+
+/* Flagged rows keep the warm card look and add a coral edge, so the top of a
+   list reads as urgent at a glance without a second colour scheme. Each list
+   keeps its own base fill; only the wash and the left edge are shared. */
+.task-item.high-priority {
+  border-left: 3px solid var(--coral);
+  background: linear-gradient(90deg, rgba(232,85,55,.09), rgba(255,255,255,.6) 72px);
+}
+.task-item.high-priority:hover { border-color: rgba(232,85,55,.45); border-left-color: var(--coral); }
+.todo-item.high-priority {
+  border-left: 3px solid var(--coral);
+  background:
+    linear-gradient(90deg, rgba(232,85,55,.10), rgba(232,85,55,0) 120px),
+    linear-gradient(160deg, rgba(255,255,255,.92) 0%, rgba(255,252,247,.88) 100%);
+}
+.todo-item.high-priority:hover { border-left-color: var(--coral); }
+/* Once it is done the flag has served its purpose — drop the alarm colour. */
+.task-item.high-priority.completed, .todo-item.high-priority.completed {
+  border-left-color: var(--border-strong); background: rgba(255,255,255,.6);
+}
+.task-item.completed .task-badge.priority, .todo-item.completed .task-badge.priority {
+  background: transparent; color: var(--text-4); border-color: var(--border);
+}
 
 /* inline add */
 .inline-add { padding: 6px 8px; }
@@ -863,6 +887,12 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
 .recur-full { grid-column: 1 / -1; }
 .custom-interval-row { display: flex; align-items: center; gap: 10px; }
 .recur-unit-toggle { display: flex; gap: 6px; flex: 1; }
+.priority-toggle { display: grid; grid-template-columns: 1fr 1.4fr; gap: 6px; }
+.priority-high-btn.active {
+  border-color: var(--coral); color: var(--coral-dark); background: var(--coral-light);
+  box-shadow: 0 2px 12px rgba(232,85,55,.28);
+}
+.priority-high-btn:hover { border-color: var(--coral-border); color: var(--coral-dark); background: var(--coral-light); }
 .recur-unit-toggle .recur-type-btn { flex: 1; }
 .occurrence-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 

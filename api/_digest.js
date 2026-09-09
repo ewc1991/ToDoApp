@@ -2,6 +2,7 @@
 // Resend so the shape of the email can be tested directly.
 import { shouldRecurOnDate } from '../src/utils/recurringUtils.js';
 import { timeToMinutes, formatTime, blockEndMinutes } from '../src/utils/timeUtils.js';
+import { isHighPriority } from '../src/utils/taskUtils.js';
 
 export const TIME_ZONE = 'America/New_York';
 
@@ -46,7 +47,7 @@ export function buildDigest({
     .filter(b => b.date === dateStr && !b.completed)
     .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 
-  const dueToday = tasks
+  const dueTodayAll = tasks
     .filter(t => t.assignedDate === dateStr && !t.completed && !promoted.has(t.id))
     .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
 
@@ -66,6 +67,14 @@ export function buildDigest({
     .filter(t => !t.assignedDate && !t.completed && !t.recurringTemplateId && !promoted.has(t.id))
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
 
+  // Flagged tasks are lifted out of their own sections into one block at the
+  // top of the email rather than repeated in both places. Today's come before
+  // the undated ones; each keeps the order its own section would have used.
+  const highPriority = [...dueTodayAll, ...backlogAll].filter(isHighPriority);
+  const flagged = new Set(highPriority.map(t => t.id));
+  const dueToday = dueTodayAll.filter(t => !flagged.has(t.id));
+  const backlogRest = backlogAll.filter(t => !flagged.has(t.id));
+
   const byNewest = [...notes]
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
@@ -77,17 +86,19 @@ export function buildDigest({
   return {
     dateStr,
     heading: longDateInZone(dateStr),
+    highPriority,
     schedule,
     dueToday: [...dueToday, ...recurringDue],
-    backlog: backlogAll.slice(0, backlogLimit),
-    backlogHidden: Math.max(0, backlogAll.length - backlogLimit),
+    backlog: backlogRest.slice(0, backlogLimit),
+    backlogHidden: Math.max(0, backlogRest.length - backlogLimit),
     newNotes,
     archive: archiveAll.slice(0, archiveLimit),
     archiveHidden: Math.max(0, archiveAll.length - archiveLimit),
     counts: {
+      highPriority: highPriority.length,
       schedule: schedule.length,
       dueToday: dueToday.length + recurringDue.length,
-      backlog: backlogAll.length,
+      backlog: backlogRest.length,
       newNotes: newNotes.length,
       notes: notes.length,
     },
@@ -95,8 +106,9 @@ export function buildDigest({
 }
 
 export function subjectFor(digest) {
-  const { schedule, dueToday, newNotes } = digest.counts;
+  const { highPriority, schedule, dueToday, newNotes } = digest.counts;
   const bits = [];
+  if (highPriority) bits.push(`${highPriority} high priority`);
   if (schedule) bits.push(`${schedule} scheduled`);
   if (dueToday) bits.push(`${dueToday} to do`);
   if (newNotes) bits.push(`${newNotes} new note${newNotes === 1 ? '' : 's'}`);
@@ -134,16 +146,32 @@ const S = {
   empty: 'font-size:14px;color:#8A7B6B;font-style:italic;',
   more: 'margin:8px 0 0;font-size:12px;color:#8A7B6B;',
   tag: 'display:inline-block;margin-left:6px;padding:1px 6px;border-radius:8px;background:#F3ECFF;color:#7B42F6;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;vertical-align:1px;',
+  // The flagged block is the one thing meant to catch the eye before anything
+  // else, so it gets its own colour rather than the shared warm brown.
+  h2Priority: 'margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#B82A0A;',
+  priorityRow: 'padding:9px 0 9px 12px;border-bottom:1px solid #EFE7DA;border-left:3px solid #E85537;background:#FFF0ED;',
+  priorityMeta: 'font-size:11px;font-weight:700;color:#B82A0A;letter-spacing:.4px;text-transform:uppercase;',
 };
 
-function section(title, inner) {
-  return `<div style="${S.section}"><div style="${S.h2}">${esc(title)}</div>${inner}</div>`;
+function section(title, inner, headingStyle = S.h2) {
+  return `<div style="${S.section}"><div style="${headingStyle}">${esc(title)}</div>${inner}</div>`;
 }
 
 const emptyRow = (text) => `<div style="${S.empty}">${esc(text)}</div>`;
 
 export function renderHtml(digest) {
   const parts = [];
+
+  if (digest.highPriority.length) {
+    parts.push(section(`⚑ High priority (${digest.highPriority.length})`,
+      digest.highPriority.map(t => `
+        <div style="${S.priorityRow}">
+          <div style="${S.title}">${esc(t.title)}</div>
+          ${t.notes ? `<div style="${S.meta}">${esc(t.notes)}</div>` : ''}
+          ${t.assignedDate ? '' : `<div style="${S.priorityMeta}">No date</div>`}
+        </div>`).join(''),
+      S.h2Priority));
+  }
 
   parts.push(section('Today’s schedule', digest.schedule.length
     ? digest.schedule.map(b => `
@@ -204,6 +232,11 @@ export function renderText(digest) {
     if (hidden) lines.push(`  +${hidden} ${hiddenLabel} in the app`);
     lines.push('');
   };
+
+  if (digest.highPriority.length) {
+    block('! High priority',
+      digest.highPriority.map(t => `  - ${t.title}${t.assignedDate ? '' : '  (no date)'}`), '');
+  }
 
   block('Today’s schedule',
     digest.schedule.map(b => `  ${blockTimeLabel(b)}  ${b.title}`),

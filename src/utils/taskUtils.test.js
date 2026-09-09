@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { reorderPlan, duplicateRecurringIds } from './taskUtils.js'
+import { reorderPlan, duplicateRecurringIds, byPriority, isHighPriority } from './taskUtils.js'
 
 const tasks = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
 
@@ -81,5 +81,36 @@ describe('duplicateRecurringIds', () => {
       { id: 'a', assignedDate: '2026-09-05' },
       { id: 'b', assignedDate: '2026-09-05' },
     ])).toEqual([])
+  })
+})
+
+describe('byPriority', () => {
+  const hi = (id) => ({ id, priority: 'high' })
+  const lo = (id) => ({ id })
+
+  it('lifts flagged tasks above the rest', () => {
+    expect(byPriority([lo('a'), hi('b'), lo('c'), hi('d')]).map(t => t.id))
+      .toEqual(['b', 'd', 'a', 'c'])
+  })
+
+  it('preserves the incoming order within each group', () => {
+    // The caller has already sorted by sortIndex / createdAt; only the split
+    // between flagged and unflagged is ours to impose.
+    expect(byPriority([lo('a'), lo('b'), hi('c'), lo('d'), hi('e')]).map(t => t.id))
+      .toEqual(['c', 'e', 'a', 'b', 'd'])
+  })
+
+  it('does not mutate its input', () => {
+    const input = [lo('a'), hi('b')]
+    byPriority(input)
+    expect(input.map(t => t.id)).toEqual(['a', 'b'])
+  })
+
+  it('treats a missing or unknown priority as normal', () => {
+    expect(isHighPriority({ id: 'a' })).toBe(false)
+    expect(isHighPriority({ id: 'a', priority: null })).toBe(false)
+    expect(isHighPriority({ id: 'a', priority: 'low' })).toBe(false)
+    expect(isHighPriority({ id: 'a', priority: 'high' })).toBe(true)
+    expect(isHighPriority(undefined)).toBe(false)
   })
 })

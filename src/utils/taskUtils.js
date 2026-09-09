@@ -44,3 +44,14 @@ export const duplicateRecurringIds = (tasks, linkedTaskIds = new Set()) => {
   }
   return doomed;
 };
+
+// A task is either flagged 'high' or carries no priority at all. Stored as a
+// string rather than a boolean so a second tier could be added without a
+// migration of every existing doc.
+export const isHighPriority = (task) => task?.priority === 'high';
+
+// High-priority tasks float to the top of whichever group they are shown in.
+// Sort is stable, so everything else keeps the order it arrived in — the
+// caller's own sortIndex, createdAt or date ordering survives untouched.
+export const byPriority = (tasks) =>
+  [...tasks].sort((a, b) => (isHighPriority(b) ? 1 : 0) - (isHighPriority(a) ? 1 : 0));

@@ -4,6 +4,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import { byPriority, isHighPriority } from '../../utils/taskUtils.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
@@ -28,7 +29,7 @@ function SortableTask({ task, onEdit, onSchedule }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item${task.completed ? ' completed' : ''}`}
+      className={`task-item${task.completed ? ' completed' : ''}${isHighPriority(task) ? ' high-priority' : ''}`}
     >
       <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">⠿</span>
       <button
@@ -44,9 +45,10 @@ function SortableTask({ task, onEdit, onSchedule }) {
       <button type="button" className="task-content" onClick={() => onEdit(task.id)}>
         <div className="task-title">{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-        {task.recurringTemplateId && (
+        {(isHighPriority(task) || task.recurringTemplateId) && (
           <div className="task-meta">
-            <span className="task-badge">Recurring</span>
+            {isHighPriority(task) && <span className="task-badge priority">⚑ High</span>}
+            {task.recurringTemplateId && <span className="task-badge">Recurring</span>}
           </div>
         )}
       </button>
@@ -71,7 +73,7 @@ function SortableTask({ task, onEdit, onSchedule }) {
 function StaticTask({ task, onEdit, onSchedule }) {
   const { dispatch } = useApp()
   return (
-    <div className={`task-item static-task${task.completed ? ' completed' : ''}`}>
+    <div className={`task-item static-task${task.completed ? ' completed' : ''}${isHighPriority(task) ? ' high-priority' : ''}`}>
       <button
         type="button"
         role="checkbox"
@@ -85,6 +87,9 @@ function StaticTask({ task, onEdit, onSchedule }) {
       <button type="button" className="task-content" onClick={() => onEdit(task.id)}>
         <div className="task-title">{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
+        {isHighPriority(task) && (
+          <div className="task-meta"><span className="task-badge priority">⚑ High</span></div>
+        )}
       </button>
       {onSchedule && (
         <button
@@ -112,8 +117,12 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
   const inlineRef = useRef(null)
   const cancelledRef = useRef(false)
 
-  const incompleteTasks = useMemo(() => tasks.filter(t => !t.completed), [tasks])
+  // Both groups put flagged tasks on top. DayPlanner sorts the same list the
+  // same way before turning a drag into new sortIndexes, so what is dragged
+  // lines up with what is rendered.
+  const incompleteTasks = useMemo(() => byPriority(tasks.filter(t => !t.completed)), [tasks])
   const completedTasks  = useMemo(() => tasks.filter(t =>  t.completed), [tasks])
+  const orderedBacklog  = useMemo(() => byPriority(backlogTasks), [backlogTasks])
   const pendingCount = incompleteTasks.length + backlogTasks.length
 
   // Keyboard shortcut: 'n' opens inline add
@@ -193,7 +202,7 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
         {backlogTasks.length > 0 && (
           <>
             <div className="task-group-label task-group-label--todo">To Do</div>
-            {backlogTasks.map(task => (
+            {orderedBacklog.map(task => (
               <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
             ))}
           </>

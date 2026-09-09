@@ -112,6 +112,82 @@ describe('backlog', () => {
   })
 })
 
+describe('high priority', () => {
+  const flagged = {
+    ...base,
+    tasks: [
+      { id: 't1', title: 'Ordinary today', assignedDate: DAY, sortIndex: 0 },
+      { id: 't2', title: 'Urgent today', assignedDate: DAY, sortIndex: 5, priority: 'high' },
+      { id: 'b1', title: 'Ordinary backlog', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'b2', title: 'Urgent backlog', createdAt: '2026-01-02T00:00:00Z', priority: 'high' },
+    ],
+  }
+
+  it('collects flagged tasks from both lists, today first', () => {
+    const d = buildDigest(flagged)
+    expect(d.highPriority.map(t => t.title)).toEqual(['Urgent today', 'Urgent backlog'])
+  })
+
+  it('lifts them out of their own sections rather than repeating them', () => {
+    const d = buildDigest(flagged)
+    expect(d.dueToday.map(t => t.title)).toEqual(['Ordinary today'])
+    expect(d.backlog.map(t => t.title)).toEqual(['Ordinary backlog'])
+    expect(d.counts.dueToday).toBe(1)
+    expect(d.counts.backlog).toBe(1)
+  })
+
+  it('never lets a flagged task fall off the end of a capped backlog', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: `b${i}`, title: `Backlog ${i}`, createdAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+    }))
+    // Oldest-first ordering would otherwise push this one well past the cap.
+    many[19].priority = 'high'
+    const d = buildDigest({ ...base, tasks: many })
+    expect(d.highPriority.map(t => t.title)).toEqual(['Backlog 19'])
+    expect(d.backlog).toHaveLength(15)
+    expect(d.backlogHidden).toBe(4)
+  })
+
+  it('ignores completed and already-scheduled tasks like every other section', () => {
+    const d = buildDigest({
+      ...base,
+      tasks: [
+        { id: 'c', title: 'Done', assignedDate: DAY, completed: true, priority: 'high' },
+        { id: 'p', title: 'Promoted', assignedDate: DAY, priority: 'high' },
+      ],
+      blocks: [{ id: 'b', date: DAY, startTime: '09:00', endTime: '10:00', title: 'Block', todoTaskId: 'p' }],
+    })
+    expect(d.highPriority).toEqual([])
+  })
+
+  it('leads the subject line with the flagged count', () => {
+    expect(subjectFor(buildDigest(flagged)))
+      .toBe('Sunday, September 6 — 2 high priority · 1 to do')
+  })
+
+  it('renders the flagged block above the schedule in both formats', () => {
+    const d = buildDigest({
+      ...flagged,
+      blocks: [{ id: 'b', date: DAY, startTime: '09:00', endTime: '09:30', title: 'Standup' }],
+    })
+    const html = renderHtml(d)
+    expect(html.indexOf('Urgent today')).toBeGreaterThan(-1)
+    expect(html.indexOf('Urgent today')).toBeLessThan(html.indexOf('Standup'))
+    expect(html).toContain('High priority (2)')
+
+    const text = renderText(d)
+    expect(text.indexOf('Urgent today')).toBeLessThan(text.indexOf('Standup'))
+    expect(text).toContain('HIGH PRIORITY')
+  })
+
+  it('omits the block entirely when nothing is flagged', () => {
+    const d = buildDigest({ ...base, tasks: [{ id: 't', title: 'Plain', assignedDate: DAY }] })
+    expect(d.highPriority).toEqual([])
+    expect(renderHtml(d)).not.toContain('High priority')
+    expect(renderText(d)).not.toContain('HIGH PRIORITY')
+  })
+})
+
 describe('notes', () => {
   const notes = [
     { id: 'n1', body: 'oldest', createdAt: '2026-09-01T10:00:00.000Z' },
