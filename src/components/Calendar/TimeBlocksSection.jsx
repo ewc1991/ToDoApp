@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
-import { HOUR_HEIGHT, LAST_MINUTE, layoutBlocks, timeToMinutes, formatSlot, minutesToTime, blockEndMinutes } from '../../utils/timeUtils.js'
+import { HOUR_HEIGHT, LAST_MINUTE, layoutBlocks, timeToMinutes, formatSlot, minutesToTime, blockEndMinutes, isAllDay } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
@@ -152,8 +152,10 @@ export default function TimeBlocksSection({ date }) {
     return () => clearInterval(id)
   }, [])
 
+  // All-day blocks share this collection but have no place on the grid — they
+  // are rendered by AllDaySection above it.
   const blocks = useMemo(
-    () => state.scheduledBlocks.filter(b => b.date === date),
+    () => state.scheduledBlocks.filter(b => b.date === date && !isAllDay(b)),
     [state.scheduledBlocks, date]
   )
 

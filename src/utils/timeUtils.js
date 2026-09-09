@@ -44,6 +44,13 @@ export const formatSlot = (minutes) => {
 export const endAfter = (startTime, mins = 30) =>
   minutesToTime(Math.min(LAST_MINUTE, timeToMinutes(startTime) + mins));
 
+// An all-day block applies to the whole date and carries no start or end. It
+// lives in the same collection as timed blocks, so every consumer that reads a
+// clock off a block has to filter these out first — timeToMinutes(null) is NaN
+// and would poison a layout or a sort. Blocks written before this existed have
+// no flag at all, which reads as timed.
+export const isAllDay = (block) => block?.allDay === true;
+
 // A block whose end is at or before its start ran to the end of the day. Older
 // records hold "00:00" from when the resize handle could clamp to 1440, so read
 // them as end-of-day rather than letting them disappear.

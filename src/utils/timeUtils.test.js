@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   LAST_MINUTE, endAfter, blockEndMinutes, layoutBlocks,
-  getNearestHalfHour, minutesToTime, timeToMinutes,
-} from './timeUtils.js'
+  getNearestHalfHour, minutesToTime, timeToMinutes, isAllDay } from './timeUtils.js'
 
 afterEach(() => vi.useRealTimers())
 
@@ -72,5 +71,15 @@ describe('getNearestHalfHour', () => {
     // Rounding up from 23:45 gave "00:00" — the top of the day already in progress.
     expect(at(23, 45)).toBe('23:30')
     expect(at(23, 30)).toBe('23:30')
+  })
+})
+
+describe('isAllDay', () => {
+  it('reads the flag, and treats a block written before it existed as timed', () => {
+    expect(isAllDay({ allDay: true })).toBe(true)
+    // Every block already in Firestore predates the field.
+    expect(isAllDay({ startTime: '09:00', endTime: '10:00' })).toBe(false)
+    expect(isAllDay({ allDay: false })).toBe(false)
+    expect(isAllDay(undefined)).toBe(false)
   })
 })

@@ -3,17 +3,19 @@ import Modal from './Modal.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import MicIcon from '../MicIcon.jsx'
 import { useApp } from '../../store/AppContext.jsx'
-import { getNearestHalfHour, endAfter, minutesToTime, timeToMinutes, blockEndMinutes, LAST_MINUTE } from '../../utils/timeUtils.js'
+import { getNearestHalfHour, endAfter, minutesToTime, timeToMinutes, blockEndMinutes, isAllDay, LAST_MINUTE } from '../../utils/timeUtils.js'
 import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 
 export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   const { state, dispatch } = useApp()
   const existing = blockId ? state.scheduledBlocks.find(b => b.id === blockId) : null
 
+  const [allDay, setAllDay] = useState(existing ? isAllDay(existing) : Boolean(prefill?.allDay))
+
   const defaultStart = existing?.startTime || prefill?.startTime || getNearestHalfHour()
   // A block saved with a broken end reads as end-of-day; show that as a real
   // time so it can be edited back into shape.
-  const defaultEnd = existing
+  const defaultEnd = existing && !isAllDay(existing)
     ? minutesToTime(Math.min(LAST_MINUTE, blockEndMinutes(existing)))
     : (prefill?.endTime || endAfter(defaultStart))
 
@@ -45,15 +47,28 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
   }
 
   const handleSave = () => {
-    if (!title.trim() || !startTime || !endTime) return
-    if (timeToMinutes(endTime) <= timeToMinutes(startTime)) return
+    if (!title.trim()) return
+    if (!allDay) {
+      if (!startTime || !endTime) return
+      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) return
+    }
 
     if (existing) {
-      dispatch({ type: 'UPDATE_SCHEDULED_BLOCK', id: existing.id, updates: { title: title.trim(), notes, startTime, endTime, date: blockDate } })
+      dispatch({
+        type: 'UPDATE_SCHEDULED_BLOCK',
+        id: existing.id,
+        updates: {
+          title: title.trim(), notes, date: blockDate, allDay,
+          // Nulled rather than left behind, or switching back and forth would
+          // leave a stale clock on a block that no longer has a slot.
+          startTime: allDay ? null : startTime,
+          endTime: allDay ? null : endTime,
+        },
+      })
     } else {
       dispatch({
         type: 'ADD_SCHEDULED_BLOCK',
-        title: title.trim(), notes, date,
+        title: title.trim(), notes, date, allDay,
         startTime, endTime,
         todoTaskId: prefill?.todoTaskId || null,
       })
@@ -75,12 +90,12 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
     }
   }
 
-  const timeValid = startTime && endTime && timeToMinutes(endTime) > timeToMinutes(startTime)
+  const timeValid = allDay || Boolean(startTime && endTime && timeToMinutes(endTime) > timeToMinutes(startTime))
 
   return (
     <>
     <Modal
-      title={existing ? 'Edit Time Block' : 'Schedule Task'}
+      title={existing ? (allDay ? 'Edit All-Day Item' : 'Edit Time Block') : (allDay ? 'Add All-Day Item' : 'Schedule Task')}
       onClose={onClose}
       footer={
         <>
@@ -115,19 +130,38 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
           <input type="date" className="form-input" value={blockDate} onChange={e => setBlockDate(e.target.value)} />
         </div>
       )}
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">Start Time</label>
-          <input type="time" className="form-input" value={startTime} onChange={e => handleStartChange(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">End Time</label>
-          <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
-          {!timeValid && startTime && endTime && (
-            <span style={{ fontSize: 16, color: 'var(--red)' }}>End must be after start</span>
-          )}
+      <div className="form-group">
+        <label className="form-label">When</label>
+        <div className="priority-toggle">
+          <button
+            type="button"
+            aria-pressed={!allDay}
+            className={`recur-type-btn${!allDay ? ' active' : ''}`}
+            onClick={() => setAllDay(false)}
+          >At a time</button>
+          <button
+            type="button"
+            aria-pressed={allDay}
+            className={`recur-type-btn${allDay ? ' active' : ''}`}
+            onClick={() => setAllDay(true)}
+          >All day</button>
         </div>
       </div>
+      {!allDay && (
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Start Time</label>
+            <input type="time" className="form-input" value={startTime} onChange={e => handleStartChange(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">End Time</label>
+            <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
+            {!timeValid && startTime && endTime && (
+              <span style={{ fontSize: 16, color: 'var(--red)' }}>End must be after start</span>
+            )}
+          </div>
+        </div>
+      )}
       <div className="form-group">
         <label className="form-label">Notes</label>
         <textarea className="form-input" placeholder="Optional notes…" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
@@ -136,7 +170,7 @@ export default function SchedulerPopup({ date, blockId, prefill, onClose }) {
     {confirming && (
       <ConfirmDialog
         title="Delete time block"
-        message={`Delete the time block "${existing.title}"?`}
+        message={`Delete ${allDay ? 'the all-day item' : 'the time block'} "${existing.title}"?`}
         detail={"This cannot be undone."}
         onConfirm={confirmDelete}
         onCancel={() => setConfirming(false)}

@@ -21,6 +21,7 @@ export default function NoteModal({ noteId, onClose }) {
   const [priority, setPriority] = useState(null)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [allDay, setAllDay] = useState(false)
   const bodyRef = useRef(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -45,18 +46,19 @@ export default function NoteModal({ noteId, onClose }) {
 
   const timeValid = !startTime || Boolean(endTime && timeToMinutes(endTime) > timeToMinutes(startTime))
   const scheduled = Boolean(date && startTime && endTime && timeValid)
+  const allDayItem = Boolean(date && allDay)
 
   // A time turns the note into a task *and* the block that occupies the slot,
   // linked so the planner shows it once — as the block — rather than twice.
-  const convertToTask = (assignedDate, withTime = false) => {
+  const convertToTask = (assignedDate, block = null) => {
     const task = noteToTask(body)
     if (!task) return
     const added = dispatch({ type: 'ADD_TASK', ...task, assignedDate, priority })
-    if (withTime) {
+    if (block) {
       dispatch({
         type: 'ADD_SCHEDULED_BLOCK',
         title: task.title, notes: task.notes,
-        date: assignedDate, startTime, endTime,
+        date: assignedDate, ...block,
         todoTaskId: added?.task?.id || null,
       })
     }
@@ -66,7 +68,9 @@ export default function NoteModal({ noteId, onClose }) {
 
   const handleSave = () => {
     if (date) {
-      convertToTask(date, scheduled)
+      if (allDayItem) convertToTask(date, { allDay: true })
+      else if (scheduled) convertToTask(date, { startTime, endTime })
+      else convertToTask(date)
     } else {
       dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
       onClose()
@@ -81,7 +85,9 @@ export default function NoteModal({ noteId, onClose }) {
     if (!endTime || timeToMinutes(endTime) <= timeToMinutes(val)) setEndTime(endAfter(val))
   }
 
-  const useATime = () => handleStartChange(getNearestHalfHour())
+  const useATime = () => { setAllDay(false); handleStartChange(getNearestHalfHour()) }
+  const useAllDay = () => { handleStartChange(''); setAllDay(true) }
+  const clearWhen = () => { handleStartChange(''); setAllDay(false) }
 
   const confirmDelete = () => {
     dispatch({ type: 'DELETE_NOTE', id: note.id })
@@ -109,7 +115,7 @@ export default function NoteModal({ noteId, onClose }) {
             onClick={handleSave}
             disabled={!timeValid}
           >
-            {scheduled ? 'Schedule' : date ? 'Add to To Do' : 'Save'}
+            {scheduled ? 'Schedule' : allDayItem ? 'Add All Day' : date ? 'Add to To Do' : 'Save'}
           </button>
         </>
       }
@@ -175,13 +181,24 @@ export default function NoteModal({ noteId, onClose }) {
           value={date}
           onChange={e => setDate(e.target.value)}
         />
-        {date && !startTime && (
+        {date && !startTime && !allDay && (
           <div className="note-schedule-time-prompt">
             <span>Goes to your To Do list for that day, unscheduled.</span>
-            <button type="button" className="btn btn-secondary" onClick={useATime}>
-              Give it a time
-            </button>
+            <span className="note-schedule-actions">
+              <button type="button" className="btn btn-secondary" onClick={useATime}>
+                Give it a time
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={useAllDay}>
+                All day
+              </button>
+            </span>
           </div>
+        )}
+        {date && allDay && (
+          <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 4 }}>
+            Sits in the All Day row for that day.
+            {' '}<button type="button" className="link-btn" onClick={clearWhen}>Undo</button>
+          </span>
         )}
         {date && startTime && (
           <>
@@ -205,7 +222,7 @@ export default function NoteModal({ noteId, onClose }) {
               ? <span style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>End must be after start</span>
               : <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>
                   Books a time block on that day.
-                  {' '}<button type="button" className="link-btn" onClick={() => handleStartChange('')}>
+                  {' '}<button type="button" className="link-btn" onClick={clearWhen}>
                     Drop the time
                   </button>
                 </span>}

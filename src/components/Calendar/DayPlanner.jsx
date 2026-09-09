@@ -11,11 +11,17 @@ import { useIsMobile } from '../../utils/useMediaQuery.js'
 import { byPriority } from '../../utils/taskUtils.js'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
+import AllDaySection from './AllDaySection.jsx'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
 // Custom collision: prefer time-blocks droppable when pointer is within it
 function customCollision(args) {
   const ptrIntersections = pointerWithin(args)
+  // The all-day row sits directly above the grid and is far shorter, so it is
+  // checked first — closestCenter would hand most of its area to the grid.
+  if (ptrIntersections.some(({ id }) => id === 'all-day-droppable')) {
+    return [{ id: 'all-day-droppable' }]
+  }
   if (ptrIntersections.some(({ id }) => id === 'time-blocks-droppable')) {
     return [{ id: 'time-blocks-droppable' }]
   }
@@ -130,7 +136,17 @@ export default function DayPlanner({ date }) {
     setActiveTask(null)
     if (!over) return
 
-    if (over.id === 'time-blocks-droppable') {
+    if (over.id === 'all-day-droppable') {
+      // No time to pick, so this needs no scheduler — promote it on the drop.
+      const task = state.tasks.find(t => t.id === active.id)
+      if (task) {
+        dispatch({
+          type: 'ADD_SCHEDULED_BLOCK',
+          title: task.title, notes: task.notes || '',
+          date, allDay: true, todoTaskId: task.id,
+        })
+      }
+    } else if (over.id === 'time-blocks-droppable') {
       // Promote task to scheduled block
       const task = state.tasks.find(t => t.id === active.id)
       if (task) {
@@ -210,7 +226,12 @@ export default function DayPlanner({ date }) {
               onMouseDown={handleDividerMouseDown}
             />
           )}
-          {(!isMobile || mobileTab === 'blocks') && <TimeBlocksSection date={date} />}
+          {(!isMobile || mobileTab === 'blocks') && (
+            <div className="planner-right">
+              <AllDaySection date={date} activeId={activeTask?.id} />
+              <TimeBlocksSection date={date} />
+            </div>
+          )}
         </div>
 
         <DragOverlay>

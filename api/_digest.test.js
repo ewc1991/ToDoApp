@@ -214,6 +214,87 @@ describe('high priority', () => {
   })
 })
 
+describe('all day', () => {
+  const allDayBlock = (over = {}) => ({
+    id: 'a1', date: DAY, title: 'Conference', allDay: true,
+    startTime: null, endTime: null, createdAt: '2026-09-01T00:00:00Z', ...over,
+  })
+
+  it('lists all-day items separately from the timed schedule', () => {
+    const d = buildDigest({
+      ...base,
+      blocks: [
+        allDayBlock(),
+        { id: 'b', date: DAY, startTime: '09:00', endTime: '09:30', title: 'Standup' },
+      ],
+    })
+    expect(d.allDay.map(b => b.title)).toEqual(['Conference'])
+    expect(d.schedule.map(b => b.title)).toEqual(['Standup'])
+    expect(d.counts.allDay).toBe(1)
+  })
+
+  it('keeps a timeless block out of the sort that reads its clock', () => {
+    // timeToMinutes(null) is NaN; leaving an all-day block in the schedule
+    // makes the comparator return NaN and scrambles the running order.
+    const d = buildDigest({
+      ...base,
+      blocks: [
+        { id: 'b2', date: DAY, startTime: '14:00', endTime: '15:00', title: 'Afternoon' },
+        allDayBlock(),
+        { id: 'b1', date: DAY, startTime: '09:00', endTime: '09:30', title: 'Morning' },
+      ],
+    })
+    expect(d.schedule.map(b => b.title)).toEqual(['Morning', 'Afternoon'])
+  })
+
+  it('orders all-day items oldest first, and skips completed ones', () => {
+    const d = buildDigest({
+      ...base,
+      blocks: [
+        allDayBlock({ id: 'a2', title: 'Second', createdAt: '2026-09-02T00:00:00Z' }),
+        allDayBlock({ id: 'a1', title: 'First', createdAt: '2026-09-01T00:00:00Z' }),
+        allDayBlock({ id: 'a3', title: 'Done', completed: true }),
+      ],
+    })
+    expect(d.allDay.map(b => b.title)).toEqual(['First', 'Second'])
+  })
+
+  it('ignores all-day items on another date', () => {
+    const d = buildDigest({ ...base, blocks: [allDayBlock({ date: '2026-09-07' })] })
+    expect(d.allDay).toEqual([])
+  })
+
+  it('inherits the flag from the task it was promoted from', () => {
+    const d = buildDigest({
+      ...base,
+      tasks: [{ id: 't', title: 'Move house', assignedDate: DAY, priority: 'high' }],
+      blocks: [allDayBlock({ title: 'Move house', todoTaskId: 't' })],
+    })
+    expect(d.allDay[0].priority).toBe('high')
+    expect(d.highPriority).toEqual([])
+    expect(renderText(d)).toContain('Move house  (high priority)')
+  })
+
+  it('renders above the schedule, and vanishes when there is none', () => {
+    const d = buildDigest({
+      ...base,
+      blocks: [allDayBlock(), { id: 'b', date: DAY, startTime: '09:00', endTime: '09:30', title: 'Standup' }],
+    })
+    const html = renderHtml(d)
+    expect(html.indexOf('Conference')).toBeLessThan(html.indexOf('Standup'))
+    expect(renderText(d).indexOf('ALL DAY')).toBeLessThan(renderText(d).indexOf('SCHEDULE'))
+
+    const empty = buildDigest(base)
+    expect(renderHtml(empty)).not.toContain('All day')
+    expect(renderText(empty)).not.toContain('ALL DAY')
+  })
+
+  it('counts into the subject line', () => {
+    const d = buildDigest({ ...base, blocks: [allDayBlock()] })
+    expect(subjectFor(d)).toBe('Sunday, September 6 — 1 all day')
+  })
+})
+
 describe('notes', () => {
   const notes = [
     { id: 'n1', body: 'oldest', createdAt: '2026-09-01T10:00:00.000Z' },

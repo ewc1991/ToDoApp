@@ -381,10 +381,14 @@ export function AppProvider({ children }) {
       }
 
       case 'ADD_SCHEDULED_BLOCK': {
+        // An all-day block gets explicit nulls for its times: Firestore rejects
+        // undefined, and a stray clock value would put it back on the grid.
+        const allDay = Boolean(action.allDay);
         const block = {
           id: genId(), title: action.title, notes: action.notes || '',
-          completed: false, date: action.date,
-          startTime: action.startTime, endTime: action.endTime,
+          completed: false, date: action.date, allDay,
+          startTime: allDay ? null : action.startTime,
+          endTime: allDay ? null : action.endTime,
           todoTaskId: action.todoTaskId || null,
           createdAt: ts(), updatedAt: ts(),
         };
