@@ -180,6 +180,32 @@ describe('high priority', () => {
     expect(text).toContain('HIGH PRIORITY')
   })
 
+  it('carries the flag onto a block promoted from a flagged task', () => {
+    // A note scheduled at a time becomes a task plus the block that occupies
+    // the slot. The task is represented by the block, so the block is where
+    // the flag has to show or it disappears from the email entirely.
+    const d = buildDigest({
+      ...base,
+      tasks: [{ id: 't', title: 'See the dentist', assignedDate: DAY, priority: 'high' }],
+      blocks: [{ id: 'b', date: DAY, startTime: '09:00', endTime: '10:00', title: 'See the dentist', todoTaskId: 't' }],
+    })
+    // Represented once, as the block — not repeated in the flagged list.
+    expect(d.highPriority).toEqual([])
+    expect(d.schedule[0].priority).toBe('high')
+    expect(renderHtml(d)).toContain('⚑ High')
+    expect(renderText(d)).toContain('See the dentist  (high priority)')
+  })
+
+  it('leaves an ordinary block unflagged', () => {
+    const d = buildDigest({
+      ...base,
+      tasks: [{ id: 't', title: 'Plain', assignedDate: DAY }],
+      blocks: [{ id: 'b', date: DAY, startTime: '09:00', endTime: '10:00', title: 'Plain', todoTaskId: 't' }],
+    })
+    expect(d.schedule[0].priority).toBeUndefined()
+    expect(renderText(d)).not.toContain('(high priority)')
+  })
+
   it('omits the block entirely when nothing is flagged', () => {
     const d = buildDigest({ ...base, tasks: [{ id: 't', title: 'Plain', assignedDate: DAY }] })
     expect(d.highPriority).toEqual([])

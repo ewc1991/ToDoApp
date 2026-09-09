@@ -541,6 +541,10 @@ export function AppProvider({ children }) {
     }
 
     baseDispatch(enriched);
+    // Handed back so a caller that has to link two new docs together — a note
+    // becoming a task and a time block at once — can read the id that was
+    // generated for it here.
+    return enriched;
   }, [uid]);
 
   // Roll incomplete dated tasks forward to today, and prune stale non-rolling

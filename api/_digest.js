@@ -43,9 +43,14 @@ export function buildDigest({
   // A task promoted to a time block is represented by the block, not twice.
   const promoted = new Set(blocks.filter(b => b.todoTaskId).map(b => b.todoTaskId));
 
+  // A block inherits the flag from the task it was promoted from, so something
+  // urgent that was given a time still reads as urgent here.
+  const flaggedTaskIds = new Set(tasks.filter(isHighPriority).map(t => t.id));
+
   const schedule = blocks
     .filter(b => b.date === dateStr && !b.completed)
-    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+    .map(b => (flaggedTaskIds.has(b.todoTaskId) ? { ...b, priority: 'high' } : b));
 
   const dueTodayAll = tasks
     .filter(t => t.assignedDate === dateStr && !t.completed && !promoted.has(t.id))
@@ -151,6 +156,7 @@ const S = {
   h2Priority: 'margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#B82A0A;',
   priorityRow: 'padding:9px 0 9px 12px;border-bottom:1px solid #EFE7DA;border-left:3px solid #E85537;background:#FFF0ED;',
   priorityMeta: 'font-size:11px;font-weight:700;color:#B82A0A;letter-spacing:.4px;text-transform:uppercase;',
+  tagPriority: 'display:inline-block;margin-left:6px;padding:1px 6px;border-radius:8px;background:#FFF0ED;color:#B82A0A;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;vertical-align:1px;',
 };
 
 function section(title, inner, headingStyle = S.h2) {
@@ -175,9 +181,9 @@ export function renderHtml(digest) {
 
   parts.push(section('Today’s schedule', digest.schedule.length
     ? digest.schedule.map(b => `
-      <div style="${S.row}">
+      <div style="${isHighPriority(b) ? S.priorityRow : S.row}">
         <div style="${S.time}">${esc(blockTimeLabel(b))}</div>
-        <div style="${S.title}">${esc(b.title)}</div>
+        <div style="${S.title}">${esc(b.title)}${isHighPriority(b) ? `<span style="${S.tagPriority}">⚑ High</span>` : ''}</div>
         ${b.notes ? `<div style="${S.meta}">${esc(b.notes)}</div>` : ''}
       </div>`).join('')
     : emptyRow('Nothing on the calendar.')));
@@ -239,7 +245,7 @@ export function renderText(digest) {
   }
 
   block('Today’s schedule',
-    digest.schedule.map(b => `  ${blockTimeLabel(b)}  ${b.title}`),
+    digest.schedule.map(b => `  ${blockTimeLabel(b)}  ${b.title}${isHighPriority(b) ? '  (high priority)' : ''}`),
     'Nothing on the calendar.');
 
   block('Unscheduled today',

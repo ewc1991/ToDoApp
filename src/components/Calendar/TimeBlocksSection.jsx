@@ -5,6 +5,7 @@ import { HOUR_HEIGHT, LAST_MINUTE, layoutBlocks, timeToMinutes, formatSlot, minu
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
+import { isHighPriority } from '../../utils/taskUtils.js'
 
 const ALL_SLOTS     = Array.from({ length: 48 }, (_, i) => i * 30)
 const DEFAULT_START =  7 * 60  // 7 AM
@@ -32,7 +33,7 @@ function useCoarsePointer() {
   return coarse
 }
 
-function ScheduledBlock({ block, startOffset, onEdit }) {
+function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
   const { dispatch } = useApp()
   const isMobile = useCoarsePointer()
   // End time while a resize drag is in flight; null when not resizing.
@@ -112,7 +113,10 @@ function ScheduledBlock({ block, startOffset, onEdit }) {
       {...listeners}
     >
       <div className="sched-block-header">
-        <div className="sched-block-title">{block.title}</div>
+        <div className="sched-block-title">
+          {flagged && <span className="sched-block-flag" title="High priority">⚑</span>}
+          {block.title}
+        </div>
         <button
           className={`block-done-btn${block.completed ? ' checked' : ''}`}
           onPointerDown={e => e.stopPropagation()}
@@ -151,6 +155,13 @@ export default function TimeBlocksSection({ date }) {
   const blocks = useMemo(
     () => state.scheduledBlocks.filter(b => b.date === date),
     [state.scheduledBlocks, date]
+  )
+
+  // A block carries no priority of its own — it inherits the flag from the task
+  // it was promoted from, so scheduling something urgent does not hide the flag.
+  const flaggedTaskIds = useMemo(
+    () => new Set(state.tasks.filter(isHighPriority).map(t => t.id)),
+    [state.tasks]
   )
 
   const isToday = date === getToday()
@@ -274,6 +285,7 @@ export default function TimeBlocksSection({ date }) {
                 block={block}
                 startOffset={displayStartMinutes}
                 onEdit={openEdit}
+                flagged={flaggedTaskIds.has(block.todoTaskId)}
               />
             ))}
           </div>

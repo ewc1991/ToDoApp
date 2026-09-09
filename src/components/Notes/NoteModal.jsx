@@ -3,6 +3,7 @@ import Modal from '../Popups/Modal.jsx'
 import ConfirmDialog from '../Popups/ConfirmDialog.jsx'
 import { useApp } from '../../store/AppContext.jsx'
 import { noteToTask } from '../../utils/noteUtils.js'
+import { endAfter, getNearestHalfHour, timeToMinutes } from '../../utils/timeUtils.js'
 import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 import MicIcon from '../MicIcon.jsx'
 
@@ -17,6 +18,9 @@ export default function NoteModal({ noteId, onClose }) {
   const [draft, setDraft] = useState(note?.body || '')
   const [base, setBase] = useState(note?.body || '')
   const [date, setDate] = useState('')
+  const [priority, setPriority] = useState(null)
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const bodyRef = useRef(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -39,22 +43,45 @@ export default function NoteModal({ noteId, onClose }) {
   }
 
 
-  const convertToTask = (assignedDate) => {
+  const timeValid = !startTime || Boolean(endTime && timeToMinutes(endTime) > timeToMinutes(startTime))
+  const scheduled = Boolean(date && startTime && endTime && timeValid)
+
+  // A time turns the note into a task *and* the block that occupies the slot,
+  // linked so the planner shows it once — as the block — rather than twice.
+  const convertToTask = (assignedDate, withTime = false) => {
     const task = noteToTask(body)
     if (!task) return
-    dispatch({ type: 'ADD_TASK', ...task, assignedDate })
+    const added = dispatch({ type: 'ADD_TASK', ...task, assignedDate, priority })
+    if (withTime) {
+      dispatch({
+        type: 'ADD_SCHEDULED_BLOCK',
+        title: task.title, notes: task.notes,
+        date: assignedDate, startTime, endTime,
+        todoTaskId: added?.task?.id || null,
+      })
+    }
     dispatch({ type: 'DELETE_NOTE', id: note.id })
     onClose()
   }
 
   const handleSave = () => {
     if (date) {
-      convertToTask(date)
+      convertToTask(date, scheduled)
     } else {
       dispatch({ type: 'UPDATE_NOTE', id: note.id, updates: { body } })
       onClose()
     }
   }
+
+  // End follows start the way the scheduler does, so picking a start alone is
+  // enough to get a valid block.
+  const handleStartChange = (val) => {
+    setStartTime(val)
+    if (!val) return setEndTime('')
+    if (!endTime || timeToMinutes(endTime) <= timeToMinutes(val)) setEndTime(endAfter(val))
+  }
+
+  const useATime = () => handleStartChange(getNearestHalfHour())
 
   const confirmDelete = () => {
     dispatch({ type: 'DELETE_NOTE', id: note.id })
@@ -62,6 +89,7 @@ export default function NoteModal({ noteId, onClose }) {
   }
 
   const handleConvert = () => convertToTask(null)
+
 
   return (
     <>
@@ -79,8 +107,9 @@ export default function NoteModal({ noteId, onClose }) {
           <button
             className={`btn ${date ? 'btn-convert' : 'btn-primary'}`}
             onClick={handleSave}
+            disabled={!timeValid}
           >
-            {date ? 'Add to To Do' : 'Save'}
+            {scheduled ? 'Schedule' : date ? 'Add to To Do' : 'Save'}
           </button>
         </>
       }
@@ -117,6 +146,26 @@ export default function NoteModal({ noteId, onClose }) {
         />
       </div>
       <div className="form-group">
+        <label className="form-label">Priority</label>
+        <div className="priority-toggle">
+          <button
+            type="button"
+            aria-pressed={priority !== 'high'}
+            className={`recur-type-btn${priority !== 'high' ? ' active' : ''}`}
+            onClick={() => setPriority(null)}
+          >Normal</button>
+          <button
+            type="button"
+            aria-pressed={priority === 'high'}
+            className={`recur-type-btn priority-high-btn${priority === 'high' ? ' active' : ''}`}
+            onClick={() => setPriority('high')}
+          >⚑ High priority</button>
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>
+          Applies to the To Do this note becomes.
+        </span>
+      </div>
+      <div className="form-group">
         <label className="form-label">
           Schedule as To Do <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>(optional)</span>
         </label>
@@ -126,10 +175,41 @@ export default function NoteModal({ noteId, onClose }) {
           value={date}
           onChange={e => setDate(e.target.value)}
         />
-        {date && (
-          <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>
-            Saving will move this note to your To Do list on that date.
-          </span>
+        {date && !startTime && (
+          <div className="note-schedule-time-prompt">
+            <span>Goes to your To Do list for that day, unscheduled.</span>
+            <button type="button" className="btn btn-secondary" onClick={useATime}>
+              Give it a time
+            </button>
+          </div>
+        )}
+        {date && startTime && (
+          <>
+            <div className="form-row" style={{ marginTop: 8 }}>
+              <div className="form-group">
+                <label className="form-label">Start Time</label>
+                <input
+                  type="time" className="form-input" value={startTime}
+                  onChange={e => handleStartChange(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">End Time</label>
+                <input
+                  type="time" className="form-input" value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+            {!timeValid
+              ? <span style={{ fontSize: 12, color: 'var(--red)', marginTop: 2 }}>End must be after start</span>
+              : <span style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>
+                  Books a time block on that day.
+                  {' '}<button type="button" className="link-btn" onClick={() => handleStartChange('')}>
+                    Drop the time
+                  </button>
+                </span>}
+          </>
         )}
       </div>
     </Modal>
