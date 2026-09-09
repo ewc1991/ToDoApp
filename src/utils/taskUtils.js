@@ -55,3 +55,23 @@ export const isHighPriority = (task) => task?.priority === 'high';
 // caller's own sortIndex, createdAt or date ordering survives untouched.
 export const byPriority = (tasks) =>
   [...tasks].sort((a, b) => (isHighPriority(b) ? 1 : 0) - (isHighPriority(a) ? 1 : 0));
+
+// The Unscheduled panel's date group, split into what is genuinely due on the
+// day and what is only there because a recurrence put it there. Completed items
+// sink within their own group rather than into one shared pile, so each group
+// reads as a self-contained list.
+export const groupUnscheduled = (tasks = []) => {
+  const split = (list) => ({
+    incomplete: byPriority(list.filter(t => !t.completed)),
+    completed: list.filter(t => t.completed),
+  });
+  return {
+    due: split(tasks.filter(t => !t.recurringTemplateId)),
+    recurring: split(tasks.filter(t => t.recurringTemplateId)),
+  };
+};
+
+// The order dnd-kit is given has to be the order the panel renders, or a drag
+// resolves against the wrong row. Both callers derive it from here.
+export const sortableOrder = (groups) =>
+  [...groups.due.incomplete, ...groups.recurring.incomplete];

@@ -4,7 +4,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
-import { byPriority, isHighPriority } from '../../utils/taskUtils.js'
+import { groupUnscheduled, sortableOrder, byPriority, isHighPriority } from '../../utils/taskUtils.js'
 import ToDoPopup from '../Popups/ToDoPopup.jsx'
 
 function CheckIcon() {
@@ -45,11 +45,8 @@ function SortableTask({ task, onEdit, onSchedule }) {
       <button type="button" className="task-content" onClick={() => onEdit(task.id)}>
         <div className="task-title">{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-        {(isHighPriority(task) || task.recurringTemplateId) && (
-          <div className="task-meta">
-            {isHighPriority(task) && <span className="task-badge priority">⚑ High</span>}
-            {task.recurringTemplateId && <span className="task-badge">Recurring</span>}
-          </div>
+        {isHighPriority(task) && (
+          <div className="task-meta"><span className="task-badge priority">⚑ High</span></div>
         )}
       </button>
       {onSchedule && (
@@ -117,13 +114,12 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
   const inlineRef = useRef(null)
   const cancelledRef = useRef(false)
 
-  // Both groups put flagged tasks on top. DayPlanner sorts the same list the
-  // same way before turning a drag into new sortIndexes, so what is dragged
-  // lines up with what is rendered.
-  const incompleteTasks = useMemo(() => byPriority(tasks.filter(t => !t.completed)), [tasks])
-  const completedTasks  = useMemo(() => tasks.filter(t =>  t.completed), [tasks])
-  const orderedBacklog  = useMemo(() => byPriority(backlogTasks), [backlogTasks])
-  const pendingCount = incompleteTasks.length + backlogTasks.length
+  // Every group puts flagged tasks on top. DayPlanner derives its drag list from
+  // the same helpers, so what is dragged lines up with what is rendered.
+  const groups = useMemo(() => groupUnscheduled(tasks), [tasks])
+  const sortable = useMemo(() => sortableOrder(groups), [groups])
+  const orderedBacklog = useMemo(() => byPriority(backlogTasks), [backlogTasks])
+  const pendingCount = sortable.length + backlogTasks.length
 
   // Keyboard shortcut: 'n' opens inline add
   useEffect(() => {
@@ -179,25 +175,34 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
         ref={setDropRef}
         className={`unscheduled-list${isOver && activeId ? ' drag-over' : ''}`}
       >
-        {(tasks.length > 0 || backlogTasks.length > 0) && (
-          <div className="task-group-label">Due Today</div>
-        )}
-
-        {/* Sortable incomplete tasks */}
-        <SortableContext items={incompleteTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          {incompleteTasks.map(task => (
+        {/* One context spanning both date groups: dnd-kit's item order has to
+            match the rendered order, and the group labels sit between them. */}
+        <SortableContext items={sortable.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          {(groups.due.incomplete.length > 0 || groups.due.completed.length > 0
+            || (tasks.length === 0 && backlogTasks.length > 0)) && (
+            <div className="task-group-label">Due Today</div>
+          )}
+          {groups.due.incomplete.map(task => (
             <SortableTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
           ))}
+          {groups.due.completed.map(task => (
+            <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
+          ))}
+
+          {tasks.length === 0 && backlogTasks.length > 0 && !showAdd && (
+            <div className="task-group-empty">Nothing assigned for today.</div>
+          )}
+
+          {(groups.recurring.incomplete.length > 0 || groups.recurring.completed.length > 0) && (
+            <div className="task-group-label task-group-label--recurring">Recurring</div>
+          )}
+          {groups.recurring.incomplete.map(task => (
+            <SortableTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
+          ))}
+          {groups.recurring.completed.map(task => (
+            <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
+          ))}
         </SortableContext>
-
-        {/* Completed tasks sink to the bottom of the date group */}
-        {completedTasks.map(task => (
-          <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
-        ))}
-
-        {tasks.length === 0 && backlogTasks.length > 0 && !showAdd && (
-          <div className="task-group-empty">Nothing assigned for today.</div>
-        )}
 
         {backlogTasks.length > 0 && (
           <>

@@ -8,7 +8,7 @@ import { useApp } from '../../store/AppContext.jsx'
 import { formatDisplayDate } from '../../utils/dateUtils.js'
 import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
 import { useIsMobile } from '../../utils/useMediaQuery.js'
-import { byPriority } from '../../utils/taskUtils.js'
+import { groupUnscheduled, sortableOrder } from '../../utils/taskUtils.js'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
 import AllDaySection from './AllDaySection.jsx'
@@ -153,10 +153,10 @@ export default function DayPlanner({ date }) {
         setSchedulerPrefill({ title: task.title, notes: task.notes, todoTaskId: task.id })
       }
     } else if (over.id !== active.id) {
-      // Reorder within unscheduled list — only among incomplete tasks, in the
-      // order the panel actually renders them (high priority first), or the
-      // indexes below would point at the wrong rows.
-      const sortable = byPriority(unscheduledTasks.filter(t => !t.completed))
+      // Reorder within the unscheduled list, in the order the panel actually
+      // renders: due-today before recurring, flagged first inside each. Any
+      // divergence here and the indexes below point at the wrong rows.
+      const sortable = sortableOrder(groupUnscheduled(unscheduledTasks))
       const oldIdx = sortable.findIndex(t => t.id === active.id)
       const newIdx = sortable.findIndex(t => t.id === over.id)
       if (oldIdx !== -1 && newIdx !== -1) {

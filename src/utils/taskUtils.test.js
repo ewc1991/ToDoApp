@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { reorderPlan, duplicateRecurringIds, byPriority, isHighPriority } from './taskUtils.js'
+import { reorderPlan, duplicateRecurringIds, byPriority, isHighPriority, groupUnscheduled, sortableOrder } from './taskUtils.js'
 
 const tasks = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
 
@@ -112,5 +112,60 @@ describe('byPriority', () => {
     expect(isHighPriority({ id: 'a', priority: 'low' })).toBe(false)
     expect(isHighPriority({ id: 'a', priority: 'high' })).toBe(true)
     expect(isHighPriority(undefined)).toBe(false)
+  })
+})
+
+describe('groupUnscheduled', () => {
+  const t = (id, over = {}) => ({ id, ...over })
+  const rec = (id, over = {}) => ({ id, recurringTemplateId: 'r1', ...over })
+
+  it('separates what is genuinely due from what a recurrence put there', () => {
+    const groups = groupUnscheduled([t('a'), rec('b'), t('c'), rec('d')])
+    expect(groups.due.incomplete.map(x => x.id)).toEqual(['a', 'c'])
+    expect(groups.recurring.incomplete.map(x => x.id)).toEqual(['b', 'd'])
+  })
+
+  it('sinks completed items within their own group, not into one pile', () => {
+    const groups = groupUnscheduled([
+      t('a', { completed: true }), t('b'), rec('c', { completed: true }), rec('d'),
+    ])
+    expect(groups.due.incomplete.map(x => x.id)).toEqual(['b'])
+    expect(groups.due.completed.map(x => x.id)).toEqual(['a'])
+    expect(groups.recurring.incomplete.map(x => x.id)).toEqual(['d'])
+    expect(groups.recurring.completed.map(x => x.id)).toEqual(['c'])
+  })
+
+  it('floats flagged tasks to the top of each group independently', () => {
+    const groups = groupUnscheduled([
+      t('a'), t('b', { priority: 'high' }), rec('c'), rec('d', { priority: 'high' }),
+    ])
+    expect(groups.due.incomplete.map(x => x.id)).toEqual(['b', 'a'])
+    expect(groups.recurring.incomplete.map(x => x.id)).toEqual(['d', 'c'])
+  })
+
+  it('copes with an empty group on either side', () => {
+    expect(groupUnscheduled([rec('a')]).due.incomplete).toEqual([])
+    expect(groupUnscheduled([t('a')]).recurring.incomplete).toEqual([])
+    expect(sortableOrder(groupUnscheduled([]))).toEqual([])
+  })
+})
+
+describe('sortableOrder', () => {
+  it('is the rendered order: due before recurring, flagged first in each', () => {
+    // This is the list dnd-kit indexes against. If it ever diverges from what
+    // UnscheduledSection renders, a drag resolves against the wrong row.
+    const tasks = [
+      { id: 'a' },
+      { id: 'b', priority: 'high' },
+      { id: 'c', recurringTemplateId: 'r1' },
+      { id: 'd', recurringTemplateId: 'r1', priority: 'high' },
+      { id: 'e', completed: true },
+    ]
+    expect(sortableOrder(groupUnscheduled(tasks)).map(x => x.id)).toEqual(['b', 'a', 'd', 'c'])
+  })
+
+  it('leaves completed tasks out entirely — they are not draggable', () => {
+    const tasks = [{ id: 'a', completed: true }, { id: 'b' }]
+    expect(sortableOrder(groupUnscheduled(tasks)).map(x => x.id)).toEqual(['b'])
   })
 })

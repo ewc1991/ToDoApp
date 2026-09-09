@@ -642,7 +642,8 @@ a { color: inherit; text-decoration: none; }
   font-size: 9px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
   color: var(--text-4); padding: 10px 8px 5px; user-select: none;
 }
-.task-group-label--todo { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.task-group-label--todo,
+.task-group-label--recurring { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
 .task-group-empty { font-size: 13px; color: var(--text-4); padding: 5px 8px 7px; font-style: italic; font-weight: 500; }
 .task-item.static-task { cursor: default; }
 .task-item.static-task .task-content { cursor: pointer; }
