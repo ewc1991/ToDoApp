@@ -64,6 +64,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [dispatch])
 
+  const unreadNotes = state.notes.filter(n => n.unread).length
+
   if (user === undefined) return <div className="app-loading">Loading…</div>
   if (!user) return <LoginPage />
 
@@ -85,7 +87,12 @@ export default function App() {
             className={`mobile-tab${state.currentPage === id ? ' active' : ''}`}
             onClick={() => dispatch({ type: 'NAVIGATE_PAGE', page: id })}
           >
-            <span className="mobile-tab-icon"><Icon /></span>
+            <span className="mobile-tab-icon">
+              <Icon />
+              {id === 'notes' && unreadNotes > 0 && (
+                <span className="tab-badge" aria-label={`${unreadNotes} new notes`}>{unreadNotes}</span>
+              )}
+            </span>
             <span className="mobile-tab-label">{label}</span>
           </button>
         ))}

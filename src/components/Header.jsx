@@ -68,12 +68,22 @@ export default function Header() {
     if (onNotes && unreadNotes > 0) dispatch({ type: 'MARK_NOTES_READ' })
   }, [onNotes, unreadNotes, dispatch])
 
+  // iOS only honours the icon badge once notification permission is granted.
+  const [notifPerm, setNotifPerm] = useState(() =>
+    'Notification' in window ? Notification.permission : 'unsupported')
+  const canPromptBadge = 'setAppBadge' in navigator && notifPerm === 'default'
+
+  async function enableBadge() {
+    setMenuOpen(false)
+    try { setNotifPerm(await Notification.requestPermission()) } catch { /* ignore */ }
+  }
+
   // Home-screen icon badge (PWA). Unsupported browsers just skip it.
   useEffect(() => {
     if (!('setAppBadge' in navigator)) return
     const p = unreadNotes > 0 ? navigator.setAppBadge(unreadNotes) : navigator.clearAppBadge()
     p?.catch?.(() => {})
-  }, [unreadNotes])
+  }, [unreadNotes, notifPerm])
 
   const initials = user?.email ? user.email[0].toUpperCase() : '?'
 
@@ -111,6 +121,14 @@ export default function Header() {
           <div className="header-dropdown">
             {user?.email && (
               <div className="header-dropdown-email">{user.email}</div>
+            )}
+            {canPromptBadge && (
+              <>
+                <div className="header-dropdown-divider" />
+                <button className="header-dropdown-item" onClick={enableBadge}>
+                  Enable app icon badge
+                </button>
+              </>
             )}
             <div className="header-dropdown-divider" />
             <button

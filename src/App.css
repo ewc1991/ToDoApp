@@ -1007,7 +1007,13 @@ input[type="time"]::-webkit-inner-spin-button { display: none; }
   color: #4C1D95; background: #EDE9FE;
   box-shadow: 0 2px 10px rgba(123,66,246,.2);
 }
-.mobile-tab-icon { display: flex; align-items: center; justify-content: center; }
+.mobile-tab-icon { position: relative; display: flex; align-items: center; justify-content: center; }
+.mobile-tab-icon .tab-badge {
+  position: absolute; top: -5px; left: 50%; margin-left: 5px;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px;
+  background: var(--coral-dark); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; letter-spacing: 0;
+}
 .mobile-tab-icon svg { width: 23px; height: 23px; }
 .mobile-tab-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .8px; line-height: 1; }
 
