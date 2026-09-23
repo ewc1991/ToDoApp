@@ -211,7 +211,8 @@ export default async function handler(req, res) {
 
   // ISO strings, not Firestore Timestamps — the client sorts and formats these
   // with `new Date(note.createdAt)`.
-  const note = { id: genId(), body, createdAt: ts(), updatedAt: ts() };
+  // `unread` drives the Notes tab / app-icon badge until the notes are viewed.
+  const note = { id: genId(), body, createdAt: ts(), updatedAt: ts(), unread: true };
 
   try {
     await db().collection('users').doc(uid).collection('notes').doc(note.id).set(note);

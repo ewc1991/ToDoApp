@@ -103,6 +103,9 @@ function reducer(state, action) {
         notes: state.notes.map(n => n.id === action.id ? { ...n, ...action.updates, updatedAt: ts() } : n),
       };
 
+    case 'MARK_NOTES_READ':
+      return { ...state, notes: state.notes.map(n => n.unread ? { ...n, unread: false } : n) };
+
     case 'DELETE_NOTE':
       return { ...state, notes: state.notes.filter(n => n.id !== action.id) };
 
@@ -510,6 +513,17 @@ export function AppProvider({ children }) {
         const updates = { ...action.updates, updatedAt: ts() };
         enriched = { ...action, updates };
         if (uid) updateDoc(doc(db, 'users', uid, 'notes', action.id), updates).catch(handleErrRef.current);
+        break;
+      }
+
+      case 'MARK_NOTES_READ': {
+        // Deliberately leaves updatedAt alone — reading a note is not editing it.
+        const unread = s.notes.filter(n => n.unread);
+        if (uid && unread.length) {
+          const batch = writeBatch(db);
+          unread.forEach(n => batch.update(doc(db, 'users', uid, 'notes', n.id), { unread: false }));
+          batch.commit().catch(handleErrRef.current);
+        }
         break;
       }
 

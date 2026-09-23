@@ -60,6 +60,21 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
+  const unreadNotes = state.notes.filter(n => n.unread).length
+  const onNotes = state.currentPage === 'notes'
+
+  // Looking at the Notes page counts as reading whatever arrives while it's open.
+  useEffect(() => {
+    if (onNotes && unreadNotes > 0) dispatch({ type: 'MARK_NOTES_READ' })
+  }, [onNotes, unreadNotes, dispatch])
+
+  // Home-screen icon badge (PWA). Unsupported browsers just skip it.
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return
+    const p = unreadNotes > 0 ? navigator.setAppBadge(unreadNotes) : navigator.clearAppBadge()
+    p?.catch?.(() => {})
+  }, [unreadNotes])
+
   const initials = user?.email ? user.email[0].toUpperCase() : '?'
 
   return (
@@ -74,6 +89,9 @@ export default function Header() {
             onClick={() => dispatch({ type: 'NAVIGATE_PAGE', page: tab.id })}
           >
             {tab.label}
+            {tab.id === 'notes' && unreadNotes > 0 && (
+              <span className="header-tab-badge" aria-label={`${unreadNotes} new notes`}>{unreadNotes}</span>
+            )}
           </button>
         ))}
       </nav>
