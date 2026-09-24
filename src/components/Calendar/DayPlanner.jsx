@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useApp } from '../../store/AppContext.jsx'
-import { formatDisplayDate } from '../../utils/dateUtils.js'
+import { formatDisplayDate, isToday, today } from '../../utils/dateUtils.js'
 import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
 import { useIsMobile } from '../../utils/useMediaQuery.js'
 import { groupUnscheduled, sortableOrder } from '../../utils/taskUtils.js'
@@ -176,6 +176,11 @@ export default function DayPlanner({ date }) {
           Calendar
         </button>
         <span className="day-planner-date">{formatDisplayDate(date)}</span>
+        {!isToday(date) && (
+          <button className="today-btn" onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: today() })}>
+            Today
+          </button>
+        )}
       </div>
 
       <DndContext
