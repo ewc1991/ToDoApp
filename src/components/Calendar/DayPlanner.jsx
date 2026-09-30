@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useApp } from '../../store/AppContext.jsx'
-import { formatDisplayDate, isToday, today } from '../../utils/dateUtils.js'
+import { formatDisplayDate, isToday, today, addDays } from '../../utils/dateUtils.js'
 import { HOUR_HEIGHT, minutesToTime, timeToMinutes } from '../../utils/timeUtils.js'
 import { useIsMobile } from '../../utils/useMediaQuery.js'
 import { groupUnscheduled, sortableOrder } from '../../utils/taskUtils.js'
@@ -175,7 +175,23 @@ export default function DayPlanner({ date }) {
           </svg>
           Calendar
         </button>
-        <span className="day-planner-date">{formatDisplayDate(date)}</span>
+        <div className="day-planner-date-nav">
+          <button
+            className="icon-btn"
+            title="Previous day"
+            onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: addDays(date, -1) })}
+          >
+            ‹
+          </button>
+          <span className="day-planner-date">{formatDisplayDate(date)}</span>
+          <button
+            className="icon-btn"
+            title="Next day"
+            onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: addDays(date, 1) })}
+          >
+            ›
+          </button>
+        </div>
         {!isToday(date) && (
           <button className="today-btn" onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: today() })}>
             Today

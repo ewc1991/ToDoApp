@@ -21,6 +21,12 @@ export const parseDate = (dateStr) => {
   return new Date(y, m - 1, d);
 };
 
+export const addDays = (dateStr, n) => {
+  const d = parseDate(dateStr);
+  d.setDate(d.getDate() + n);
+  return formatDate(d);
+};
+
 export const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 export const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
