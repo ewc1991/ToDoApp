@@ -39,11 +39,18 @@ function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
   // End time while a resize drag is in flight; null when not resizing.
   // Kept local so the drag doesn't write to Firestore on every pointer move.
   const [draftEndTime, setDraftEndTime] = useState(null)
+  // If the pointer is released past the (now taller) resize handle, it lands
+  // on the block body instead, and the browser fires a click there — which
+  // would otherwise pop the edit dialog open right after every resize.
+  const justResizedRef = useRef(false)
   const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
     id: `block-${block.id}`,
     data: { type: 'scheduled-block', blockId: block.id },
-    disabled: isMobile,
   })
+  // Touch can't distinguish "drag the block" from "scroll the day" on a press
+  // anywhere in it, so on mobile only a dedicated handle starts the drag; the
+  // rest of the block stays tappable (edit) and swipeable (scroll) as normal.
+  const dragProps = isMobile ? {} : { ...attributes, ...listeners }
 
   const startMin = timeToMinutes(block.startTime)
   const endMin   = draftEndTime ? timeToMinutes(draftEndTime) : blockEndMinutes(block)
@@ -95,6 +102,8 @@ function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
           id: block.id,
           updates: { endTime: minutesToTime(latestEnd) },
         })
+        justResizedRef.current = true
+        setTimeout(() => { justResizedRef.current = false }, 0)
       }
       setDraftEndTime(null)
     }
@@ -108,11 +117,25 @@ function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
       ref={setNodeRef}
       className={`sched-block${block.completed ? ' completed' : ''}`}
       style={style}
-      onClick={e => { e.stopPropagation(); onEdit(block.id) }}
-      {...attributes}
-      {...listeners}
+      onClick={e => {
+        e.stopPropagation()
+        if (justResizedRef.current) return
+        onEdit(block.id)
+      }}
+      {...dragProps}
     >
       <div className="sched-block-header">
+        {isMobile && (
+          <span
+            className="sched-block-drag-handle"
+            title="Drag to move"
+            onClick={e => e.stopPropagation()}
+            {...attributes}
+            {...listeners}
+          >
+            ⠿
+          </span>
+        )}
         <div className="sched-block-title">
           {flagged && <span className="sched-block-flag" title="High priority">⚑</span>}
           {block.title}
