@@ -103,7 +103,6 @@ export default function CalendarView() {
             <button
               key={cell.dateStr}
               type="button"
-              disabled={!cell.currentMonth}
               aria-current={isCurrentDay ? 'date' : undefined}
               aria-label={formatDisplayDate(cell.dateStr) + (hasTasks ? ' — has tasks' : '')}
               className={[
@@ -112,10 +111,10 @@ export default function CalendarView() {
                 isCurrentDay && !selected ? 'today' : '',
                 selected ? 'selected' : '',
               ].filter(Boolean).join(' ')}
-              onClick={() => cell.currentMonth && dispatch({ type: 'NAVIGATE_DATE', dateStr: cell.dateStr })}
+              onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: cell.dateStr })}
             >
               <span className="calendar-date">{cell.day}</span>
-              {hasTasks && cell.currentMonth && (
+              {hasTasks && (
                 <div className="calendar-dot-row"><div className="calendar-dot" /></div>
               )}
             </button>

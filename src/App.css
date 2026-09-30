@@ -345,8 +345,11 @@ a { color: inherit; text-decoration: none; }
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(0,150,214,.18);
 }
-.calendar-cell.other-month { opacity: .2; cursor: default; background: transparent; border-color: transparent; }
-.calendar-cell.other-month:hover { background: transparent; transform: none; box-shadow: none; border-color: transparent; }
+.calendar-cell.other-month { opacity: .35; background: transparent; border-color: transparent; }
+.calendar-cell.other-month:hover {
+  opacity: .6; background: rgba(0,150,214,.08); border-color: rgba(0,150,214,.25);
+  transform: scale(1.1); box-shadow: 0 6px 20px rgba(0,150,214,.18);
+}
 
 /* Today */
 .calendar-cell.today {
