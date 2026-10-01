@@ -75,3 +75,15 @@ export const groupUnscheduled = (tasks = []) => {
 // resolves against the wrong row. Both callers derive it from here.
 export const sortableOrder = (groups) =>
   [...groups.due.incomplete, ...groups.recurring.incomplete];
+
+// Mirrors the "Due Today" group's own filter (not a recurring instance, not
+// already promoted to a time block) so the app-wide reminders — tab title,
+// favicon, per-row flash — agree with what the panel itself calls due today.
+export const dueTodayTasks = (tasks, scheduledBlocks, dateStr) => {
+  const scheduledTaskIds = new Set(
+    scheduledBlocks.filter(b => b.date === dateStr && b.todoTaskId).map(b => b.todoTaskId)
+  );
+  return tasks.filter(t =>
+    t.assignedDate === dateStr && !t.completed && !t.recurringTemplateId && !scheduledTaskIds.has(t.id)
+  );
+};

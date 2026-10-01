@@ -1,7 +1,10 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useApp } from './store/AppContext.jsx'
 import { useAuth } from './store/AuthContext.jsx'
 import { isTypingTarget, isModalOpen } from './utils/hotkeys.js'
+import { dueTodayTasks } from './utils/taskUtils.js'
+import { useDueTodayAlert } from './utils/useDueTodayAlert.js'
+import { today } from './utils/dateUtils.js'
 import Header from './components/Header.jsx'
 import CalendarPage from './components/Calendar/CalendarPage.jsx'
 import ToDoPage from './components/ToDo/ToDoPage.jsx'
@@ -65,6 +68,12 @@ export default function App() {
   }, [dispatch])
 
   const unreadNotes = state.notes.filter(n => n.unread).length
+
+  const dueTodayCount = useMemo(
+    () => dueTodayTasks(state.tasks, state.scheduledBlocks, today()).length,
+    [state.tasks, state.scheduledBlocks]
+  )
+  useDueTodayAlert(dueTodayCount)
 
   if (user === undefined) return <div className="app-loading">Loading…</div>
   if (!user) return <LoginPage />

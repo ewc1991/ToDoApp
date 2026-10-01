@@ -15,7 +15,7 @@ function CheckIcon() {
   )
 }
 
-function SortableTask({ task, onEdit, onSchedule }) {
+function SortableTask({ task, onEdit, onSchedule, dueFlash }) {
   const { dispatch } = useApp()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
@@ -29,7 +29,7 @@ function SortableTask({ task, onEdit, onSchedule }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item${task.completed ? ' completed' : ''}${isHighPriority(task) ? ' high-priority' : ''}`}
+      className={`task-item${task.completed ? ' completed' : ''}${isHighPriority(task) ? ' high-priority' : ''}${dueFlash ? ' due-flash' : ''}`}
     >
       <span className="drag-handle" {...listeners} {...attributes} title="Drag to schedule">⠿</span>
       <button
@@ -185,9 +185,14 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
               {groups.due.incomplete.length > 0 && <span className="due-today-flash" />}
             </div>
           )}
-          {groups.due.incomplete.map(task => (
-            <SortableTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
-          ))}
+          {/* Keyed on the date so opening a different day replays the shake
+              once, the same way a freshly mounted element always does —
+              no timer or extra state needed to turn it back off. */}
+          <div key={date} className={groups.due.incomplete.length > 0 ? 'due-today-shake' : undefined}>
+            {groups.due.incomplete.map(task => (
+              <SortableTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} dueFlash />
+            ))}
+          </div>
           {groups.due.completed.map(task => (
             <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
           ))}
