@@ -180,7 +180,10 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
         <SortableContext items={sortable.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {(groups.due.incomplete.length > 0 || groups.due.completed.length > 0
             || (tasks.length === 0 && backlogTasks.length > 0)) && (
-            <div className="task-group-label">Due Today</div>
+            <div className="task-group-label">
+              Due Today
+              {groups.due.incomplete.length > 0 && <span className="due-today-flash" />}
+            </div>
           )}
           {groups.due.incomplete.map(task => (
             <SortableTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
@@ -193,6 +196,15 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
             <div className="task-group-empty">Nothing assigned for today.</div>
           )}
 
+          {backlogTasks.length > 0 && (
+            <>
+              <div className="task-group-label task-group-label--todo">To Do</div>
+              {orderedBacklog.map(task => (
+                <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
+              ))}
+            </>
+          )}
+
           {(groups.recurring.incomplete.length > 0 || groups.recurring.completed.length > 0) && (
             <div className="task-group-label task-group-label--recurring">Recurring</div>
           )}
@@ -203,15 +215,6 @@ export default function UnscheduledSection({ tasks, backlogTasks = [], date, act
             <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
           ))}
         </SortableContext>
-
-        {backlogTasks.length > 0 && (
-          <>
-            <div className="task-group-label task-group-label--todo">To Do</div>
-            {orderedBacklog.map(task => (
-              <StaticTask key={task.id} task={task} onEdit={setEditId} onSchedule={onSchedule} />
-            ))}
-          </>
-        )}
 
         {tasks.length === 0 && backlogTasks.length === 0 && !showAdd && (
           <div className="empty-state">
