@@ -75,8 +75,23 @@ export default function Header() {
   // and push needs it too — one button covers both.
   const [notifPerm, setNotifPerm] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported')
+
+  // Permission and an actual push subscription are separate things — someone
+  // who already granted permission for the icon badge, before push existed,
+  // would otherwise never see this button again even though they still have
+  // no subscription. Checked once per mount; enableNotifications() flips it
+  // locally on success so the button hides immediately, no reload needed.
+  const [pushSubscribed, setPushSubscribed] = useState(false)
+  useEffect(() => {
+    if (!pushSupported()) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setPushSubscribed(!!sub))
+      .catch(() => {})
+  }, [])
+
   const canEnableNotifications =
-    notifPerm === 'default' && ('setAppBadge' in navigator || pushSupported())
+    notifPerm !== 'denied' && !pushSubscribed && ('setAppBadge' in navigator || pushSupported())
 
   async function enableNotifications() {
     setMenuOpen(false)
@@ -91,6 +106,7 @@ export default function Header() {
         doc(db, 'users', user.uid, 'pushSubscriptions', subscriptionDocId(subscription.endpoint)),
         { ...subscription, createdAt: new Date().toISOString() }
       )
+      setPushSubscribed(true)
     } catch (err) {
       console.error('Push subscription failed:', err)
     }
