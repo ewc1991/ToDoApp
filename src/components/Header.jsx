@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { doc, setDoc } from 'firebase/firestore'
 import ConfirmDialog from './Popups/ConfirmDialog.jsx'
 import { useApp } from '../store/AppContext.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import { db } from '../firebase'
+import { pushSupported, subscribeToPush, subscriptionDocId } from '../utils/push.js'
 
 const TABS = [
   { id: 'calendar', label: 'Calendar' },
@@ -68,14 +71,29 @@ export default function Header() {
     if (onNotes && unreadNotes > 0) dispatch({ type: 'MARK_NOTES_READ' })
   }, [onNotes, unreadNotes, dispatch])
 
-  // iOS only honours the icon badge once notification permission is granted.
+  // iOS only honours the icon badge once notification permission is granted,
+  // and push needs it too — one button covers both.
   const [notifPerm, setNotifPerm] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported')
-  const canPromptBadge = 'setAppBadge' in navigator && notifPerm === 'default'
+  const canEnableNotifications =
+    notifPerm === 'default' && ('setAppBadge' in navigator || pushSupported())
 
-  async function enableBadge() {
+  async function enableNotifications() {
     setMenuOpen(false)
-    try { setNotifPerm(await Notification.requestPermission()) } catch { /* ignore */ }
+    let perm
+    try { perm = await Notification.requestPermission() } catch { return }
+    setNotifPerm(perm)
+    if (perm !== 'granted' || !pushSupported() || !user) return
+    try {
+      const subscription = await subscribeToPush()
+      if (!subscription) return
+      await setDoc(
+        doc(db, 'users', user.uid, 'pushSubscriptions', subscriptionDocId(subscription.endpoint)),
+        { ...subscription, createdAt: new Date().toISOString() }
+      )
+    } catch (err) {
+      console.error('Push subscription failed:', err)
+    }
   }
 
   // Home-screen icon badge (PWA). Unsupported browsers just skip it.
@@ -122,11 +140,11 @@ export default function Header() {
             {user?.email && (
               <div className="header-dropdown-email">{user.email}</div>
             )}
-            {canPromptBadge && (
+            {canEnableNotifications && (
               <>
                 <div className="header-dropdown-divider" />
-                <button className="header-dropdown-item" onClick={enableBadge}>
-                  Enable app icon badge
+                <button className="header-dropdown-item" onClick={enableNotifications}>
+                  Enable notifications
                 </button>
               </>
             )}

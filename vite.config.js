@@ -36,6 +36,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // Adds push/notificationclick handling to the generated sw.js — see
+        // public/push-sw.js. generateSW (not injectManifest) owns sw.js
+        // outright, so this is the supported way to extend it.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
