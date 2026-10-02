@@ -1,8 +1,10 @@
 // GET /api/digest — the morning email.
 //
-// Vercel Cron calls this overnight with the CRON_SECRET as a bearer token. It
-// reads the day ahead out of Firestore, sends one email through Resend, and
-// records when it ran so the next digest knows which notes are new.
+// cron-job.org calls this daily with the CRON_SECRET as a bearer token (see
+// CRON.md — this app uses cron-job.org for every scheduled job, not Vercel
+// Cron). It reads the day ahead out of Firestore, sends one email through
+// Resend, and records when it ran so the next digest knows which notes are
+// new.
 //
 // Env (alongside the webhook's FIREBASE_SERVICE_ACCOUNT and NOTES_USER_UID):
 //   CRON_SECRET     supplied by Vercel to authorise the scheduled call

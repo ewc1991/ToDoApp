@@ -1,9 +1,9 @@
 // GET /api/push-due — nags about whatever's still unfinished right now.
 //
-// Vercel Cron calls this every 30 minutes (see vercel.json). Hobby-tier
-// projects can't run a cron more often than once a day, so on Hobby this
-// route needs an external scheduler (e.g. cron-job.org) calling it every 30
-// minutes with the CRON_SECRET bearer token instead — see PUSH.md.
+// cron-job.org calls this every 30 minutes with the CRON_SECRET as a bearer
+// token (see CRON.md — this app uses cron-job.org for every scheduled job,
+// not Vercel Cron, since the Hobby plan caps Vercel's own crons at once a
+// day).
 //
 // Env (alongside the digest's CRON_SECRET and FIREBASE_SERVICE_ACCOUNT):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY   from `npx web-push generate-vapid-keys`

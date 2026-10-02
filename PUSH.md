@@ -28,30 +28,18 @@ npx web-push generate-vapid-keys --json
 (`CRON_SECRET` and `FIREBASE_SERVICE_ACCOUNT` already exist for the digest —
 `push-due` reuses both.)
 
-**3. Deploy**, then open the app on the phone that should get the nudges and
+**3. Schedule it** — see `CRON.md`. This app calls every scheduled route from
+cron-job.org rather than Vercel Cron, so `/api/push-due` needs a job there set
+to run every 30 minutes.
+
+**4. Deploy**, then open the app on the phone that should get the nudges and
 use the avatar menu → **Enable notifications**. That's what actually creates
 the subscription and saves it to `users/{uid}/pushSubscriptions/*` — nothing
 sends until at least one device has done this.
 
-**4. iPhone only:** push (and the permission prompt itself) only works from
+**5. iPhone only:** push (and the permission prompt itself) only works from
 the **installed home-screen app**, iOS 16.4+. A Safari tab can't do it at
 all. Android Chrome works either installed or in a regular tab.
-
-## Vercel plan limit
-
-Hobby-tier projects can only run a cron **once a day**, so the `*/30 * * * *`
-entry in `vercel.json` won't actually fire that often there. If pushes aren't
-arriving and `vercel.json` looks right, that's almost certainly it — confirm
-your plan, and if it's Hobby, point an external scheduler (e.g.
-[cron-job.org](https://cron-job.org), free) at:
-
-```
-GET https://<your-app>.vercel.app/api/push-due
-Authorization: Bearer <CRON_SECRET>
-```
-
-every 30 minutes instead, and you can drop the entry from `vercel.json`'s
-`crons` array (or leave it — Vercel just won't honor the interval on Hobby).
 
 ## Checking it without waiting for a real nudge
 
