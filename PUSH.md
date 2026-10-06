@@ -7,6 +7,11 @@ get from a phone's native reminders — if a task you scheduled for this slot
 is still sitting there unfinished, you get told about it again, on a loop,
 until you either finish it or move it.
 
+Each run also looks an hour ahead: unfinished blocks starting within the next
+60 minutes (including just past midnight, late in the evening) are listed in
+the same notification with their start times, so you get a heads-up before
+they begin, not just once they're underway.
+
 ## Setup
 
 **1. VAPID keys** — identify this server to the push services (Apple's,
@@ -48,8 +53,9 @@ curl "https://<your-app>.vercel.app/api/push-due?dryRun=1" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Reports which blocks it considers "due right now" and how many devices are
-subscribed, without actually sending anything.
+Reports which blocks it considers "due right now" (`due`), which start in
+the next hour (`upcoming`), and how many devices are subscribed, without
+actually sending anything.
 
 ## Notification behavior
 

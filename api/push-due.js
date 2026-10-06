@@ -1,4 +1,5 @@
-// GET /api/push-due — nags about whatever's still unfinished right now.
+// GET /api/push-due — nags about whatever's still unfinished right now, and
+// gives a heads-up on anything starting in the next hour.
 //
 // cron-job.org calls this every 30 minutes with the CRON_SECRET as a bearer
 // token (see CRON.md — this app uses cron-job.org for every scheduled job,
@@ -11,7 +12,9 @@
 import webpush from 'web-push';
 import { userDoc, secretMatches } from './_firebase.js';
 import { dateInZone } from './_digest.js';
-import { minutesNowInZone, activeIncompleteBlocks, pushPayloadFor } from './_push.js';
+import {
+  minutesNowInZone, activeIncompleteBlocks, upcomingIncompleteBlocks, pushPayloadFor, LOOKAHEAD_MINUTES,
+} from './_push.js';
 
 export default async function handler(req, res) {
   const presented = (req.headers.authorization || '').replace(/^Bearer /, '').trim();
@@ -37,21 +40,31 @@ export default async function handler(req, res) {
       user.collection('pushSubscriptions').get(),
     ]);
 
-    const due = activeIncompleteBlocks(blocksSnap.docs.map(d => d.data()), dateStr, nowMinutes);
+    const blocks = blocksSnap.docs.map(d => d.data());
+    const due = activeIncompleteBlocks(blocks, dateStr, nowMinutes);
+    const upcoming = upcomingIncompleteBlocks(blocks, dateStr, nowMinutes);
+    // Late in the evening the lookahead runs into tomorrow — check its early
+    // blocks too, measuring "now" as minutes before tomorrow's midnight.
+    const laterDateStr = dateInZone(new Date(now.getTime() + LOOKAHEAD_MINUTES * 60000));
+    if (laterDateStr !== dateStr) {
+      upcoming.push(...upcomingIncompleteBlocks(blocks, laterDateStr, nowMinutes - 1440));
+    }
 
     // dryRun renders without sending, so the matching logic can be checked
     // against real data without actually paging the phone.
     if (req.query?.dryRun) {
       return res.status(200).json({
-        ok: true, dryRun: true, due: due.map(b => b.title), subscriptions: subsSnap.size,
+        ok: true, dryRun: true,
+        due: due.map(b => b.title), upcoming: upcoming.map(b => b.title),
+        subscriptions: subsSnap.size,
       });
     }
 
-    if (!due.length || subsSnap.empty) {
-      return res.status(200).json({ ok: true, sent: 0, due: due.length });
+    if ((!due.length && !upcoming.length) || subsSnap.empty) {
+      return res.status(200).json({ ok: true, sent: 0, due: due.length, upcoming: upcoming.length });
     }
 
-    const payload = JSON.stringify(pushPayloadFor(due));
+    const payload = JSON.stringify(pushPayloadFor(due, upcoming));
     let sent = 0;
     await Promise.all(subsSnap.docs.map(async (docSnap) => {
       try {
@@ -68,7 +81,7 @@ export default async function handler(req, res) {
       }
     }));
 
-    return res.status(200).json({ ok: true, sent, due: due.length });
+    return res.status(200).json({ ok: true, sent, due: due.length, upcoming: upcoming.length });
   } catch (err) {
     console.error('push-due failed:', err);
     return res.status(500).json({ error: 'Failed to send push' });
