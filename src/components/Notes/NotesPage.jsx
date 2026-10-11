@@ -128,54 +128,54 @@ export default function NotesPage() {
         <span className="notes-toolbar-title">Notes</span>
       </div>
 
-      <div className="notes-scroll">
-        {/* Composer */}
-        <div className="notes-composer" onKeyDown={handleKey}>
-          <div className="notes-composer-body-row">
-            <textarea
-              ref={bodyRef}
-              className="notes-composer-body"
-              placeholder="Start typing or tap the mic to dictate…"
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              rows={3}
+      {/* Composer — outside the scroller so it stays put while the notes scroll */}
+      <div className="notes-composer" onKeyDown={handleKey}>
+        <div className="notes-composer-body-row">
+          <textarea
+            ref={bodyRef}
+            className="notes-composer-body"
+            placeholder="Start typing or tap the mic to dictate…"
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            rows={3}
+          />
+          <button
+            className={`notes-mic-btn${recording ? ' recording' : ''}`}
+            onClick={toggleRecording}
+            title={recording ? 'Stop recording' : 'Dictate note (uses browser speech)'}
+            type="button"
+          >
+            <MicIcon />
+          </button>
+        </div>
+        {speechError && <span className="dictate-error">{speechError}</span>}
+        <div className="notes-composer-footer">
+          <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="date"
+              className="notes-date-input"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              title="Optional: schedule as To Do"
             />
+            {body && (
+              <button className="btn btn-secondary" onClick={() => { setBody(''); setDate(''); bodyRef.current?.focus() }}>
+                Clear
+              </button>
+            )}
             <button
-              className={`notes-mic-btn${recording ? ' recording' : ''}`}
-              onClick={toggleRecording}
-              title={recording ? 'Stop recording' : 'Dictate note (uses browser speech)'}
-              type="button"
+              className={`btn ${date ? 'btn-convert' : 'btn-primary'}`}
+              onClick={handleAdd}
+              disabled={!body.trim()}
             >
-              <MicIcon />
+              {date ? 'Add to To Do' : 'Save Note'}
             </button>
           </div>
-          {speechError && <span className="dictate-error">{speechError}</span>}
-          <div className="notes-composer-footer">
-            <span className="notes-composer-hint">{recording ? '● Listening…' : '⌘+Enter to save'}</span>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="date"
-                className="notes-date-input"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                title="Optional: schedule as To Do"
-              />
-              {body && (
-                <button className="btn btn-secondary" onClick={() => { setBody(''); setDate(''); bodyRef.current?.focus() }}>
-                  Clear
-                </button>
-              )}
-              <button
-                className={`btn ${date ? 'btn-convert' : 'btn-primary'}`}
-                onClick={handleAdd}
-                disabled={!body.trim()}
-              >
-                {date ? 'Add to To Do' : 'Save Note'}
-              </button>
-            </div>
-          </div>
         </div>
+      </div>
 
+      <div className="notes-scroll">
         {/* Notes grid */}
         {notes.length === 0 ? (
           <div className="empty-state" style={{ marginTop: 48 }}>
