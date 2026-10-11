@@ -18,8 +18,10 @@ export default function NotesPage() {
   const [date, setDate] = useState('')
   const [editId, setEditId] = useState(null)
   const [actionId, setActionId] = useState(null)
+  const [menu, setMenu] = useState(null) // { id, x, y } of an open right-click menu
   const pressTimer = useRef(null)
   const longPressed = useRef(false)
+  const touching = useRef(false)
   const bodyRef = useRef(null)
 
   const { recording, toggle: toggleSpeech, error: speechError } = useSpeechInput(
@@ -43,9 +45,9 @@ export default function NotesPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // Press and hold a card (or right-click) to get at delete without having to
-  // open the note first.
+  // Press and hold a card to get at delete without having to open the note first.
   const startPress = (id) => {
+    touching.current = true
     longPressed.current = false
     clearTimeout(pressTimer.current)
     pressTimer.current = setTimeout(() => {
@@ -54,7 +56,37 @@ export default function NotesPage() {
       navigator.vibrate?.(12)
     }, 500)
   }
-  const cancelPress = () => clearTimeout(pressTimer.current)
+  const cancelPress = () => { touching.current = false; clearTimeout(pressTimer.current) }
+
+  // Right-click gets a one-click Delete at the cursor — a mouse is deliberate
+  // enough not to need the confirmation a long press does. Android fires
+  // contextmenu mid long-press too; leave that one to the press timer.
+  const openMenu = (e, id) => {
+    e.preventDefault()
+    if (touching.current) return
+    const MENU_W = 160, MENU_H = 48
+    setMenu({
+      id,
+      x: Math.min(e.clientX, window.innerWidth - MENU_W - 8),
+      y: Math.min(e.clientY, window.innerHeight - MENU_H - 8),
+    })
+  }
+
+  useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(null)
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [menu])
 
   // A long press ends in a click too; swallow that one so the note does not
   // also open behind the sheet.
@@ -162,7 +194,7 @@ export default function NotesPage() {
                 onTouchEnd={cancelPress}
                 onTouchMove={cancelPress}
                 onTouchCancel={cancelPress}
-                onContextMenu={e => { e.preventDefault(); setActionId(note.id) }}
+                onContextMenu={e => openMenu(e, note.id)}
               >
                 {note.body && <div className="note-card-body">{note.body}</div>}
                 <div className="note-card-date">{formatNoteDate(note.createdAt)}</div>
@@ -171,6 +203,29 @@ export default function NotesPage() {
           </div>
         )}
       </div>
+
+      {menu && (
+        <div
+          className="context-menu"
+          role="menu"
+          style={{ left: menu.x, top: menu.y }}
+          onMouseDown={e => e.stopPropagation()}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="context-menu-item danger"
+            autoFocus
+            onClick={() => {
+              dispatch({ type: 'DELETE_NOTE', id: menu.id })
+              setMenu(null)
+            }}
+          >
+            Delete note
+          </button>
+        </div>
+      )}
 
       {editId && (
         <NoteModal noteId={editId} onClose={() => setEditId(null)} />

@@ -220,6 +220,18 @@ a { color: inherit; text-decoration: none; }
 .header-dropdown-item { width: 100%; text-align: left; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--rose-dark); transition: background .1s; display: block; }
 .header-dropdown-item:hover { background: var(--rose-light); }
 
+/* Right-click menu (notes) */
+.context-menu {
+  position: fixed; z-index: 1000; min-width: 160px; padding: 4px;
+  background: rgba(254,252,247,.98);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+.context-menu-item { width: 100%; text-align: left; padding: 8px 12px; font-size: 14px; font-weight: 600; border-radius: 6px; display: block; transition: background .1s; }
+.context-menu-item.danger { color: var(--rose-dark); }
+.context-menu-item.danger:hover, .context-menu-item.danger:focus-visible { background: var(--rose-light); }
+
 /* ── Auth ──────────────────────────────────────────────── */
 .app-loading {
   height: 100dvh; display: flex; align-items: center; justify-content: center;
