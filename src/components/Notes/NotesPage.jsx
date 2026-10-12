@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import { noteToTask } from '../../utils/noteUtils.js'
@@ -6,6 +6,7 @@ import { useSpeechInput, appendTranscript } from '../../utils/useSpeechInput.js'
 import MicIcon from '../MicIcon.jsx'
 import NoteModal from './NoteModal.jsx'
 import ConfirmDialog from '../Popups/ConfirmDialog.jsx'
+import ContextMenu from '../Popups/ContextMenu.jsx'
 
 function formatNoteDate(isoStr) {
   const d = new Date(isoStr)
@@ -64,29 +65,9 @@ export default function NotesPage() {
   const openMenu = (e, id) => {
     e.preventDefault()
     if (touching.current) return
-    const MENU_W = 160, MENU_H = 48
-    setMenu({
-      id,
-      x: Math.min(e.clientX, window.innerWidth - MENU_W - 8),
-      y: Math.min(e.clientY, window.innerHeight - MENU_H - 8),
-    })
+    setMenu({ id, x: e.clientX, y: e.clientY })
   }
-
-  useEffect(() => {
-    if (!menu) return
-    const close = () => setMenu(null)
-    const onKey = (e) => { if (e.key === 'Escape') close() }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
-    }
-  }, [menu])
+  const closeMenu = useCallback(() => setMenu(null), [])
 
   // A long press ends in a click too; swallow that one so the note does not
   // also open behind the sheet.
@@ -205,26 +186,13 @@ export default function NotesPage() {
       </div>
 
       {menu && (
-        <div
-          className="context-menu"
-          role="menu"
-          style={{ left: menu.x, top: menu.y }}
-          onMouseDown={e => e.stopPropagation()}
-          onContextMenu={e => e.preventDefault()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="context-menu-item danger"
-            autoFocus
-            onClick={() => {
-              dispatch({ type: 'DELETE_NOTE', id: menu.id })
-              setMenu(null)
-            }}
-          >
-            Delete note
-          </button>
-        </div>
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label="Delete note"
+          onSelect={() => dispatch({ type: 'DELETE_NOTE', id: menu.id })}
+          onClose={closeMenu}
+        />
       )}
 
       {editId && (

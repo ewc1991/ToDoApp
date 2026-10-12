@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { useApp } from '../../store/AppContext.jsx'
 import { isAllDay } from '../../utils/timeUtils.js'
 import { isHighPriority } from '../../utils/taskUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
+import ContextMenu from '../Popups/ContextMenu.jsx'
 
 function CheckIcon() {
   return (
@@ -20,6 +21,8 @@ export default function AllDaySection({ date, activeId }) {
   const { state, dispatch } = useApp()
   const [editId, setEditId] = useState(null)
   const [adding, setAdding] = useState(false)
+  const [menu, setMenu] = useState(null) // { id, x, y } of an open right-click menu
+  const closeMenu = useCallback(() => setMenu(null), [])
 
   const items = useMemo(
     () => state.scheduledBlocks
@@ -60,6 +63,7 @@ export default function AllDaySection({ date, activeId }) {
           <div
             key={item.id}
             className={`all-day-item${item.completed ? ' completed' : ''}${flaggedTaskIds.has(item.todoTaskId) ? ' high-priority' : ''}`}
+            onContextMenu={e => { e.preventDefault(); setMenu({ id: item.id, x: e.clientX, y: e.clientY }) }}
           >
             <button
               type="button"
@@ -89,6 +93,16 @@ export default function AllDaySection({ date, activeId }) {
           </div>
         )}
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label="Delete all-day item"
+          onSelect={() => dispatch({ type: 'DELETE_SCHEDULED_BLOCK', id: menu.id })}
+          onClose={closeMenu}
+        />
+      )}
 
       {(adding || editId) && (
         <SchedulerPopup

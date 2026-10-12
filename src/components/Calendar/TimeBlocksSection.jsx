@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react'
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { useApp } from '../../store/AppContext.jsx'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { HOUR_HEIGHT, LAST_MINUTE, layoutBlocks, timeToMinutes, formatSlot, minutesToTime, blockEndMinutes, isAllDay } from '../../utils/timeUtils.js'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
+import ContextMenu from '../Popups/ContextMenu.jsx'
 import { today as getToday } from '../../utils/dateUtils.js'
 import { shouldIgnoreHotkey } from '../../utils/hotkeys.js'
 import { isHighPriority } from '../../utils/taskUtils.js'
@@ -33,7 +34,7 @@ function useCoarsePointer() {
   return coarse
 }
 
-function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
+function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
   const { dispatch } = useApp()
   const isMobile = useCoarsePointer()
   // End time while a resize drag is in flight; null when not resizing.
@@ -122,6 +123,7 @@ function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
         if (justResizedRef.current) return
         onEdit(block.id)
       }}
+      onContextMenu={e => onMenu(e, block.id)}
       {...dragProps}
     >
       <div className="sched-block-header">
@@ -159,8 +161,11 @@ function ScheduledBlock({ block, startOffset, onEdit, flagged }) {
 }
 
 export default function TimeBlocksSection({ date }) {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
   const [schedulerState, setSchedulerState] = useState(null)
+  const [menu, setMenu] = useState(null) // { id, x, y } of an open right-click menu
+  const openMenu = (e, id) => { e.preventDefault(); setMenu({ id, x: e.clientX, y: e.clientY }) }
+  const closeMenu = useCallback(() => setMenu(null), [])
   const [showWholeDay, setShowWholeDay] = useState(false)
   const scrollRef = useRef(null)
 
@@ -310,12 +315,23 @@ export default function TimeBlocksSection({ date }) {
                 block={block}
                 startOffset={displayStartMinutes}
                 onEdit={openEdit}
+                onMenu={openMenu}
                 flagged={flaggedTaskIds.has(block.todoTaskId)}
               />
             ))}
           </div>
         </div>
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label="Delete time block"
+          onSelect={() => dispatch({ type: 'DELETE_SCHEDULED_BLOCK', id: menu.id })}
+          onClose={closeMenu}
+        />
+      )}
 
       {schedulerState && (
         <SchedulerPopup
