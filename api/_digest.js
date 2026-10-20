@@ -3,6 +3,7 @@
 import { shouldRecurOnDate } from '../src/utils/recurringUtils.js';
 import { timeToMinutes, formatTime, blockEndMinutes, isAllDay } from '../src/utils/timeUtils.js';
 import { isHighPriority } from '../src/utils/taskUtils.js';
+import { addDays } from '../src/utils/dateUtils.js';
 
 export const TIME_ZONE = 'America/New_York';
 
@@ -49,19 +50,25 @@ export function buildDigest({
 
   const flag = (b) => (flaggedTaskIds.has(b.todoTaskId) ? { ...b, priority: 'high' } : b);
 
-  const onThisDay = blocks.filter(b => b.date === dateStr && !b.completed);
-
   // All-day items have no clock, so they are listed ahead of the grid rather
   // than sorted into it. Oldest first, matching the day page's own order.
-  const allDay = onThisDay
-    .filter(isAllDay)
+  const allDayOn = (date) => blocks
+    .filter(b => b.date === date && !b.completed && isAllDay(b))
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
     .map(flag);
 
-  const schedule = onThisDay
-    .filter(b => !isAllDay(b))
+  const timedOn = (date) => blocks
+    .filter(b => b.date === date && !b.completed && !isAllDay(b))
     .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
     .map(flag);
+
+  const allDay = allDayOn(dateStr);
+  const schedule = timedOn(dateStr);
+
+  // Whatever was left unticked yesterday, so it is not lost overnight. Same
+  // order as a day's own sections: all-day items, then the timed grid.
+  const yesterdayStr = addDays(dateStr, -1);
+  const yesterday = [...allDayOn(yesterdayStr), ...timedOn(yesterdayStr)];
 
   const dueTodayAll = tasks
     .filter(t => t.assignedDate === dateStr && !t.completed && !promoted.has(t.id))
@@ -103,6 +110,7 @@ export function buildDigest({
     dateStr,
     heading: longDateInZone(dateStr),
     highPriority,
+    yesterday,
     allDay,
     schedule,
     dueToday: [...dueToday, ...recurringDue],
@@ -113,6 +121,7 @@ export function buildDigest({
     archiveHidden: Math.max(0, archiveAll.length - archiveLimit),
     counts: {
       highPriority: highPriority.length,
+      yesterday: yesterday.length,
       allDay: allDay.length,
       schedule: schedule.length,
       dueToday: dueToday.length + recurringDue.length,
@@ -124,9 +133,10 @@ export function buildDigest({
 }
 
 export function subjectFor(digest) {
-  const { highPriority, allDay, schedule, dueToday, newNotes } = digest.counts;
+  const { highPriority, yesterday, allDay, schedule, dueToday, newNotes } = digest.counts;
   const bits = [];
   if (highPriority) bits.push(`${highPriority} high priority`);
+  if (yesterday) bits.push(`${yesterday} left from yesterday`);
   if (allDay) bits.push(`${allDay} all day`);
   if (schedule) bits.push(`${schedule} scheduled`);
   if (dueToday) bits.push(`${dueToday} to do`);
@@ -193,6 +203,15 @@ export function renderHtml(digest) {
           ${t.assignedDate ? '' : `<div style="${S.priorityMeta}">No date</div>`}
         </div>`).join(''),
       S.h2Priority));
+  }
+
+  if (digest.yesterday.length) {
+    parts.push(section(`Left from yesterday (${digest.yesterday.length})`, digest.yesterday.map(b => `
+      <div style="${isHighPriority(b) ? S.priorityRow : isAllDay(b) ? S.allDayRow : S.row}">
+        <div style="${S.time}">${esc(isAllDay(b) ? 'All day' : blockTimeLabel(b))}</div>
+        <div style="${S.title}">${esc(b.title)}${isHighPriority(b) ? `<span style="${S.tagPriority}">⚑ High</span>` : ''}</div>
+        ${b.notes ? `<div style="${S.meta}">${esc(b.notes)}</div>` : ''}
+      </div>`).join('')));
   }
 
   if (digest.allDay.length) {
@@ -266,6 +285,11 @@ export function renderText(digest) {
   if (digest.highPriority.length) {
     block('! High priority',
       digest.highPriority.map(t => `  - ${t.title}${t.assignedDate ? '' : '  (no date)'}`), '');
+  }
+
+  if (digest.yesterday.length) {
+    block('Left from yesterday',
+      digest.yesterday.map(b => `  ${isAllDay(b) ? 'All day' : blockTimeLabel(b)}  ${b.title}${isHighPriority(b) ? '  (high priority)' : ''}`), '');
   }
 
   if (digest.allDay.length) {

@@ -295,6 +295,53 @@ describe('all day', () => {
   })
 })
 
+describe('left from yesterday', () => {
+  const PREV = '2026-09-05'
+
+  it('lists yesterday’s incomplete blocks, all-day first, then by time', () => {
+    const d = buildDigest({
+      ...base,
+      blocks: [
+        { id: 'b2', date: PREV, startTime: '15:00', endTime: '16:00', title: 'Afternoon' },
+        { id: 'b1', date: PREV, startTime: '09:00', endTime: '10:00', title: 'Morning' },
+        { id: 'a', date: PREV, title: 'Errands', allDay: true, startTime: null, endTime: null },
+        { id: 'c', date: PREV, startTime: '11:00', endTime: '12:00', title: 'Done', completed: true },
+        { id: 'o', date: '2026-09-04', startTime: '09:00', endTime: '10:00', title: 'Two days ago' },
+        { id: 't', date: DAY, startTime: '09:00', endTime: '10:00', title: 'Today' },
+      ],
+    })
+    expect(d.yesterday.map(b => b.title)).toEqual(['Errands', 'Morning', 'Afternoon'])
+    expect(d.schedule.map(b => b.title)).toEqual(['Today'])
+    expect(d.counts.yesterday).toBe(3)
+  })
+
+  it('crosses a month boundary', () => {
+    const d = buildDigest({
+      ...base,
+      dateStr: '2026-10-01',
+      blocks: [{ id: 'b', date: '2026-09-30', startTime: '09:00', endTime: '10:00', title: 'End of month' }],
+    })
+    expect(d.yesterday.map(b => b.title)).toEqual(['End of month'])
+  })
+
+  it('renders in both formats and counts into the subject', () => {
+    const d = buildDigest({
+      ...base,
+      tasks: [{ id: 't', title: 'Urgent', assignedDate: PREV, priority: 'high' }],
+      blocks: [{ id: 'b', date: PREV, startTime: '09:00', endTime: '10:00', title: 'Urgent', todoTaskId: 't' }],
+    })
+    expect(renderHtml(d)).toContain('Left from yesterday (1)')
+    expect(renderText(d)).toContain('9:00 AM – 10:00 AM  Urgent  (high priority)')
+    expect(subjectFor(d)).toBe('Sunday, September 6 — 1 left from yesterday')
+  })
+
+  it('vanishes when everything was finished', () => {
+    const d = buildDigest(base)
+    expect(renderHtml(d)).not.toContain('Left from yesterday')
+    expect(renderText(d)).not.toContain('LEFT FROM YESTERDAY')
+  })
+})
+
 describe('notes', () => {
   const notes = [
     { id: 'n1', body: 'oldest', createdAt: '2026-09-01T10:00:00.000Z' },
