@@ -787,6 +787,11 @@ a { color: inherit; text-decoration: none; }
   /* A finger needs a bigger target than a mouse cursor does. */
   .sched-block-resize-handle { height: 20px; }
   .sched-block-resize-handle::after { background: var(--coral-border); }
+  /* On a 20–30 minute block that taller strip covers the header, so the
+     controls are lifted above it and given a finger-sized hit area. */
+  .sched-block-drag-handle, .block-done-btn { position: relative; z-index: 2; }
+  .sched-block-drag-handle::after,
+  .block-done-btn::after { content: ''; position: absolute; inset: -8px; }
 }
 .sched-block-drag-handle {
   color: var(--border-strong); cursor: grab; font-size: 14px; line-height: 1;

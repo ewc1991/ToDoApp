@@ -81,12 +81,14 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
     const origEndMin    = Math.min(LAST_MINUTE, blockEndMinutes(block))
     const blockStartMin = timeToMinutes(block.startTime)
     let latestEnd       = origEndMin
+    let moved           = false
     document.body.style.cursor     = 'ns-resize'
     document.body.style.userSelect = 'none'
 
     // Track the drag locally and commit once on release — dispatching here would
     // write to Firestore on every pointer move (100+ writes for one gesture).
     const onPointerMove = (e) => {
+      if (Math.abs(e.clientY - startY) > 4) moved = true
       const deltaMin = Math.round(((e.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15
       latestEnd = Math.max(blockStartMin + 15, Math.min(LAST_MINUTE, origEndMin + deltaMin))
       setDraftEndTime(minutesToTime(latestEnd))
@@ -103,6 +105,10 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
           id: block.id,
           updates: { endTime: minutesToTime(latestEnd) },
         })
+      }
+      // Any real drag, even one that snapped back to the same end time, is a
+      // resize attempt rather than a tap, so it must not open the editor.
+      if (moved) {
         justResizedRef.current = true
         setTimeout(() => { justResizedRef.current = false }, 0)
       }
@@ -151,10 +157,11 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
         </button>
       </div>
       {!isShort && block.notes && <div className="sched-block-notes">{block.notes}</div>}
+      {/* A tap here that didn't resize falls through to the block's own click
+          (edit) — on a short block this strip is most of what can be tapped. */}
       <div
         className="sched-block-resize-handle"
         onPointerDown={handleResizePointerDown}
-        onClick={e => e.stopPropagation()}
       />
     </div>
   )
