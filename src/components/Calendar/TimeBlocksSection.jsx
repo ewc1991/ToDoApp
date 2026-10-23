@@ -40,10 +40,6 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
   // End time while a resize drag is in flight; null when not resizing.
   // Kept local so the drag doesn't write to Firestore on every pointer move.
   const [draftEndTime, setDraftEndTime] = useState(null)
-  // If the pointer is released past the (now taller) resize handle, it lands
-  // on the block body instead, and the browser fires a click there — which
-  // would otherwise pop the edit dialog open right after every resize.
-  const justResizedRef = useRef(false)
   const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
     id: `block-${block.id}`,
     data: { type: 'scheduled-block', blockId: block.id },
@@ -107,10 +103,18 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
         })
       }
       // Any real drag, even one that snapped back to the same end time, is a
-      // resize attempt rather than a tap, so it must not open the editor.
+      // resize attempt rather than a tap, so the click the browser fires on
+      // release must not reach anything. Where it lands depends on where the
+      // pointer ends up: on the block body it would open the editor, and just
+      // past the block's edge (common, since the end snaps to 15 min) it hits
+      // the canvas and opens the new-block dialog. Swallow it at the window,
+      // before React sees it.
       if (moved) {
-        justResizedRef.current = true
-        setTimeout(() => { justResizedRef.current = false }, 0)
+        const swallowClick = (e) => { e.stopPropagation(); e.preventDefault() }
+        window.addEventListener('click', swallowClick, { capture: true, once: true })
+        // A drag doesn't always produce a click (touch usually won't), so don't
+        // leave the listener around to eat the next real one.
+        setTimeout(() => window.removeEventListener('click', swallowClick, true), 300)
       }
       setDraftEndTime(null)
     }
@@ -124,11 +128,7 @@ function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
       ref={setNodeRef}
       className={`sched-block${block.completed ? ' completed' : ''}`}
       style={style}
-      onClick={e => {
-        e.stopPropagation()
-        if (justResizedRef.current) return
-        onEdit(block.id)
-      }}
+      onClick={e => { e.stopPropagation(); onEdit(block.id) }}
       onContextMenu={e => onMenu(e, block.id)}
       {...dragProps}
     >
