@@ -34,7 +34,8 @@ function useCoarsePointer() {
   return coarse
 }
 
-function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
+// Shared with the week view, which lays out seven columns of these.
+export function ScheduledBlock({ block, startOffset, onEdit, onMenu, flagged }) {
   const { dispatch } = useApp()
   const isMobile = useCoarsePointer()
   // End time while a resize drag is in flight; null when not resizing.

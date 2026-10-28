@@ -12,6 +12,7 @@ import { groupUnscheduled, sortableOrder } from '../../utils/taskUtils.js'
 import UnscheduledSection from './UnscheduledSection.jsx'
 import TimeBlocksSection from './TimeBlocksSection.jsx'
 import AllDaySection from './AllDaySection.jsx'
+import PlannerViewToggle from './PlannerViewToggle.jsx'
 import SchedulerPopup from '../Popups/SchedulerPopup.jsx'
 
 // Custom collision: prefer time-blocks droppable when pointer is within it
@@ -192,11 +193,14 @@ export default function DayPlanner({ date }) {
             ›
           </button>
         </div>
-        {!isToday(date) && (
-          <button className="today-btn" onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: today() })}>
-            Today
-          </button>
-        )}
+        <div className="planner-header-actions">
+          {!isToday(date) && (
+            <button className="today-btn" onClick={() => dispatch({ type: 'NAVIGATE_DATE', dateStr: today() })}>
+              Today
+            </button>
+          )}
+          {!isMobile && <PlannerViewToggle />}
+        </div>
       </div>
 
       <DndContext

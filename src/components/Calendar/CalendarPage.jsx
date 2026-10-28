@@ -3,6 +3,8 @@ import { useApp } from '../../store/AppContext.jsx'
 import { today } from '../../utils/dateUtils.js'
 import CalendarView from './CalendarView.jsx'
 import DayPlanner from './DayPlanner.jsx'
+import WeekPlanner from './WeekPlanner.jsx'
+import { useIsMobile } from '../../utils/useMediaQuery.js'
 
 export default function CalendarPage() {
   const { state, dispatch } = useApp()
@@ -20,12 +22,16 @@ export default function CalendarPage() {
     }
   }, [state.currentPlannerDate, state.recurringTemplatesLoaded, state.generatedDates, dispatch])
 
-  return (
-    <div className="calendar-page page">
-      {state.currentPlannerDate
-        ? <DayPlanner date={state.currentPlannerDate} />
-        : <CalendarView />
-      }
-    </div>
-  )
+  // A phone has no room for seven columns, so it keeps the day view even when
+  // week was last chosen on a desktop.
+  const isMobile = useIsMobile()
+
+  let content = <CalendarView />
+  if (state.currentPlannerDate) {
+    content = state.plannerView === 'week' && !isMobile
+      ? <WeekPlanner date={state.currentPlannerDate} />
+      : <DayPlanner date={state.currentPlannerDate} />
+  }
+
+  return <div className="calendar-page page">{content}</div>
 }

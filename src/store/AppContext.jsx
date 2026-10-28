@@ -53,6 +53,8 @@ const makeInitialState = () => {
   lastVisitDate: today(),
   lastCompletedTask: null,
   showCompletedTasks: false,
+  // 'day' or 'week'. Week is desktop-only; a phone always gets the day view.
+  plannerView: 'day',
   };
 };
 
@@ -260,6 +262,9 @@ function reducer(state, action) {
 
     case 'TOGGLE_SHOW_COMPLETED_TASKS':
       return { ...state, showCompletedTasks: !state.showCompletedTasks };
+
+    case 'SET_PLANNER_VIEW':
+      return { ...state, plannerView: action.view };
 
     // The app stayed open (or was resumed from the background) into a new day:
     // start it the way a fresh load would.
@@ -800,6 +805,7 @@ export function AppProvider({ children }) {
         showCompletedTasks: state.showCompletedTasks,
         lastCompletedTask: state.lastCompletedTask,
         currentPlannerDate: state.currentPlannerDate,
+        plannerView: state.plannerView,
       }, { merge: true }).catch(handleErrRef.current);
     }, 1000);
     return () => clearTimeout(timer);
@@ -811,6 +817,7 @@ export function AppProvider({ children }) {
     state.showCompletedTasks,
     state.lastCompletedTask,
     state.currentPlannerDate,
+    state.plannerView,
   ]);
 
   return <AppContext.Provider value={{ state, dispatch, networkError }}>{children}</AppContext.Provider>;
